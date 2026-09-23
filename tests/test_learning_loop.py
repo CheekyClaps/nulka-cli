@@ -97,17 +97,17 @@ class TestLearningLoop(unittest.TestCase):
         
         try:
             state.last_user_prompt = "another query"
-            state.last_route = "CODE"
-            
+            state.last_route = "CREATOR"
+
             # Patch hrf_manager.doubt to return 5.0 to support :.2f float formatting
             with patch('nulka_cli.tools.oracle_cli_tool.OracleCLITool._run', return_value="Oracle solution here"), \
                  patch('nulka_cli.tools.interactive_teacher_tool.InteractiveTeacherTool._run', return_value="Success") as mock_teacher_run, \
                  patch('nulka_cli.cli.hrf_manager.doubt', return_value=5.0) as mock_doubt:
-                 
+
                 execute_teach_feedback()
-                
+
                 mock_teacher_run.assert_called_once_with(
-                    agent_name="developer",
+                    agent_name="creator",
                     proposed_rules="When faced with requests similar to 'another query', apply the following universal guideline:\nOracle solution here\nAlways ensure this rule is applied abstractly to the current context."
                 )
                 mock_doubt.assert_called_once()

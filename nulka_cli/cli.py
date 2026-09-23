@@ -108,16 +108,12 @@ def analyze_prompt_intent(prompt: str) -> dict:
         "If it is impossible to proceed, write a clarification question. If you CAN proceed (or if it's a general question), output 'PROCEED'. "
         "IMPORTANT: If the user says something conversational like 'let go again', 'lets pick up where we left off', or 'continue', you MUST output 'PROCEED' because the General Assistant knows how to handle these automatically based on its learned rules.\n\n"
         "TASK 2 - ROUTING:\n"
-        "Assign the request to EXACTLY ONE of these specialized departments:\n"
-        "- PLAN: Roadmaps, task breakdowns, sprint setups.\n"
-        "- ARCHITECT: System design, diagrams, framework choice.\n"
-        "- COMPLEX_CODE: ONLY for massive, multi-step software development requests that explicitly require a multi-agent swarm (Dev -> QA -> Security). Do NOT use this for standard file editing or basic coding.\n"
-        "- TEST: Writing or executing test suites (pytest, etc).\n"
-        "- PENTEST: Offensive security, exploit PoCs.\n"
-        "- SECURITY: Defensive audits, compliance, secrets scanning.\n"
-        "- NETWORK: Firewalls, proxies, domain configs.\n"
-        "- GENERAL: The General Assistant. Capable of executing shell commands, writing/editing code, running searches, and chatting.\n\n"
-        "CRITICAL RULE: The GENERAL assistant is a highly capable coder and system operator. 95% of tasks (including writing code, fixing bugs, reading files, searching the web, or answering questions) MUST be routed to GENERAL. Only route to specialized departments if the user explicitly requests a complex, multi-agent audit or swarm.\n\n"
+        "Assign the request to EXACTLY ONE of these versatile archetypes based on the intent:\n"
+        "- STRATEGIST: Planning, structural design, architecture, defining roadmaps, or breaking down tasks.\n"
+        "- CREATOR: Writing code, generating documents, writing essays, creating configuration files, or building features.\n"
+        "- AUDITOR: Reviewing work, QA testing, searching for secrets/vulnerabilities, verifying compliance, or factual fact-checking.\n"
+        "- ANALYST: Researching topics, parsing data/logs, running system operations/shell diagnostics, or extracting intelligence.\n"
+        "- GENERAL: General conversational chats or vague instructions (e.g. 'let's go', 'continue').\n\n"
         "OUTPUT FORMAT (You must output exactly these two lines):\n"
         "SCRUTINY: [Your question or PROCEED]\n"
         "ROUTE: [Category Name]\n\n"
@@ -140,7 +136,7 @@ def analyze_prompt_intent(prompt: str) -> dict:
                 result["scrutiny"] = val if val else "PROCEED"
             elif line.upper().startswith("ROUTE:"):
                 val = line[len("ROUTE:"):].strip().upper()
-                for cat in ["PLAN", "ARCHITECT", "COMPLEX_CODE", "TEST", "PENTEST", "SECURITY", "NETWORK", "GENERAL", "ORACLE"]:
+                for cat in ["STRATEGIST", "CREATOR", "AUDITOR", "ANALYST", "GENERAL", "ORACLE"]:
                     if cat in val:
                         result["route"] = cat
                         break
@@ -279,92 +275,49 @@ def execute_crew_workflow(route: str, prompt: str):
         crew_agents = [agents["external_oracle"]]
         status_msg = "Consulting Oracle..."
         
-    elif route == "PLAN":
+    elif route == "STRATEGIST":
         tasks = [
             Task(
-                description=f"Analyze the requirement: {full_prompt_with_history}. Design a high-level roadmap and checklist. Store rules or steps.",
-                expected_output="A clean, comprehensive Markdown-formatted product plan with checklists.",
-                agent=agents["planner"]
+                description=f"Analyze the requirement: {full_prompt_with_history}. Design a high-level roadmap, architecture, or blueprint based on the user's need.",
+                expected_output="A clean, comprehensive Markdown-formatted plan with actionable steps or architectural designs.",
+                agent=agents["strategist"]
             )
         ]
-        crew_agents = [agents["planner"]]
-        status_msg = "Planning department is drawing up blueprints..."
+        crew_agents = [agents["strategist"]]
+        status_msg = "The Strategist is drawing up blueprints..."
 
-    elif route == "ARCHITECT":
+    elif route == "CREATOR":
         tasks = [
             Task(
-                description=f"Analyze structural constraints for: {full_prompt_with_history}. Produce systems architecture designs, UML schemas, or file trees.",
-                expected_output="An architectural specification document outlining modular boundaries and design patterns.",
-                agent=agents["systems_engineer"]
+                description=f"Implement the requirement: {full_prompt_with_history}. Read relevant context files and write code, draft documents, or generate configuration.",
+                expected_output="Directly modified workspace files or a complete drafted output.",
+                agent=agents["creator"]
             )
         ]
-        crew_agents = [agents["systems_engineer"]]
-        status_msg = "Systems Architecture is engineering the structural boundaries..."
+        crew_agents = [agents["creator"]]
+        status_msg = "The Creator is implementing your request..."
 
-    elif route == "COMPLEX_CODE":
-        # Multi-agent software dev squad: Dev -> QA -> Security Audit
-        coding_task = Task(
-            description=f"Implement functional code for requirement: {full_prompt_with_history}. Write cleanly commented code into workspace files.",
-            expected_output="Functional code files created in the workspace.",
-            agent=agents["developer"]
-        )
-        qa_task = Task(
-            description="Examine the code implemented. Write and execute complete unit tests to verify correctness.",
-            expected_output="Comprehensive unit tests validating code correctness.",
-            agent=agents["tester"]
-        )
-        sec_task = Task(
-            description="Conduct a defensive security review on the code. Ensure zero secrets are committed and secure coding rules are met.",
-            expected_output="Defensive security pass certificate or vulnerability fix warnings.",
-            agent=agents["security_officer"]
-        )
-        tasks = [coding_task, qa_task, sec_task]
-        crew_agents = [agents["developer"], agents["tester"], agents["security_officer"]]
-        status_msg = "Full Dev-QA-Security squad is implementing, verifying, and hardening your code..."
-
-    elif route == "TEST":
+    elif route == "AUDITOR":
         tasks = [
             Task(
-                description=f"Analyze the workspace and write or execute test suites verifying target files for: {full_prompt_with_history}. Ensure test-driven standards.",
-                expected_output="An operational test suite and a test execution summary report.",
-                agent=agents["tester"]
+                description=f"Review the target scope: {full_prompt_with_history}. Write/run tests, search for vulnerabilities/secrets, or verify factual compliance.",
+                expected_output="An audit report, test execution summary, or security patch.",
+                agent=agents["auditor"]
             )
         ]
-        crew_agents = [agents["tester"]]
-        status_msg = "QA & Testing is executing validation routines..."
+        crew_agents = [agents["auditor"]]
+        status_msg = "The Auditor is verifying functionality and security..."
 
-    elif route == "PENTEST":
+    elif route == "ANALYST":
         tasks = [
             Task(
-                description=f"Perform offensive security scanning or binary analysis matching user scope: {full_prompt_with_history}. Attempt safe exploits.",
-                expected_output="A vulnerability report with severity ratings, threat models, and proof of concept runs.",
-                agent=agents["pentester"]
+                description=f"Investigate the scope: {full_prompt_with_history}. Parse logs, research datasets, execute diagnostic shell commands, or extract intelligence.",
+                expected_output="A synthesized research summary or diagnostic report with citations.",
+                agent=agents["analyst"]
             )
         ]
-        crew_agents = [agents["pentester"]]
-        status_msg = "Ethical Penetration squad is launching offensive scans..."
-
-    elif route == "SECURITY":
-        tasks = [
-            Task(
-                description=f"Examine codebases or environments matching: {full_prompt_with_history} for security posture, compliance, encryption, and secure storage.",
-                expected_output="A comprehensive CISO audit report highlighting defensive strengths, secret detections, and compliance metrics.",
-                agent=agents["security_officer"]
-            )
-        ]
-        crew_agents = [agents["security_officer"]]
-        status_msg = "Security Office is performing defensive posture reviews..."
-
-    elif route == "NETWORK":
-        tasks = [
-            Task(
-                description=f"Analyze and design topologies, proxies, firewalls, or docker networking configurations matching: {full_prompt_with_history}.",
-                expected_output="A validated networking design configuration, docker composition, or firewall script blueprint.",
-                agent=agents["network_engineer"]
-            )
-        ]
-        crew_agents = [agents["network_engineer"]]
-        status_msg = "Infrastructure Team is mapping subnet routing and firewalls..."
+        crew_agents = [agents["analyst"]]
+        status_msg = "The Analyst is running deep diagnostics and research..."
 
     else: # GENERAL
         # General Assistant route
@@ -453,20 +406,14 @@ def execute_crew_workflow(route: str, prompt: str):
     steps = ["Router"]
     if route == "ORACLE":
         steps.extend(["Universal Oracle (HRF Bypass)"])
-    elif route == "PLAN":
-        steps.extend(["Product Planner"])
-    elif route == "ARCHITECT":
-        steps.extend(["Systems Architect"])
-    elif route == "CODE":
-        steps.extend(["Developer", "QA Tester", "Security Officer"])
-    elif route == "TEST":
-        steps.extend(["QA Tester"])
-    elif route == "PENTEST":
-        steps.extend(["Pentester"])
-    elif route == "SECURITY":
-        steps.extend(["Security Officer"])
-    elif route == "NETWORK":
-        steps.extend(["Network Engineer"])
+    elif route == "STRATEGIST":
+        steps.extend(["The Strategist"])
+    elif route == "CREATOR":
+        steps.extend(["The Creator"])
+    elif route == "AUDITOR":
+        steps.extend(["The Auditor"])
+    elif route == "ANALYST":
+        steps.extend(["The Analyst"])
     else: # GENERAL
         steps.extend(["General Assistant"])
 
@@ -507,13 +454,10 @@ def execute_teach_feedback():
 
     # Map the LAST_ROUTE to the correct agent filename/key to update
     route_to_agent_map = {
-        "PLAN": "planner",
-        "ARCHITECT": "systems_engineer",
-        "CODE": "developer",
-        "TEST": "tester",
-        "PENTEST": "pentester",
-        "SECURITY": "security_officer",
-        "NETWORK": "network_engineer",
+        "STRATEGIST": "strategist",
+        "CREATOR": "creator",
+        "AUDITOR": "auditor",
+        "ANALYST": "analyst",
         "GENERAL": "assistant",
         "ORACLE": "assistant"
     }
