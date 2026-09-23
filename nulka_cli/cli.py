@@ -724,20 +724,22 @@ def run_interactive_cli():
 
     # Welcome banner
     welcome_text = Text()
-    welcome_text.append("\n🤖 Nulka-Agent\n", style="bold green")
+    welcome_text.append("\n🤖 NulkaCLI (Enterprise Multi-Agent Workspace)\n", style="bold green")
     welcome_text.append("Operating System: ", style="dim")
     welcome_text.append(f"{platform.system()} {platform.release()}\n", style="bold cyan")
     welcome_text.append("Local Time: ", style="dim")
     welcome_text.append(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n", style="bold yellow")
+    welcome_text.append("Active Local Model: ", style="dim")
+    welcome_text.append(f"{get_active_model_name()}\n", style="bold magenta")
     welcome_text.append("Available Agents: ", style="dim")
-    welcome_text.append("Router, Planner, Architect, Developer, Tester, Pentester, Security, Network\n", style="bold magenta")
+    welcome_text.append("Strategist, Creator, Auditor, Analyst, Router, Teacher, Oracle\n", style="bold magenta")
     welcome_text.append("Special Tooling: ", style="dim")
-    welcome_text.append("Native Workspace & Web Tools\n", style="bold blue")
+    welcome_text.append("Workspace Automation, Web Search, Dynamic HRF & Fallback Oracle\n", style="bold blue")
     welcome_text.append("Interactive Help: ", style="dim")
-    welcome_text.append("Type /models to view models or /help to view command list\n", style="bold green")
+    welcome_text.append("Type /help to view command list or /risk to preview prompt danger\n", style="bold green")
     welcome_text.append("Type '/quit', 'exit', or 'quit' to terminate.\n", style="italic")
     
-    console.print(Panel(welcome_text, title="[bold green]NulkaCLI[/]", border_style="green"))
+    console.print(Panel(welcome_text, title="[bold green]NulkaCLI Session[/]", border_style="green"))
     
     from prompt_toolkit.history import FileHistory
     from prompt_toolkit.styles import Style
