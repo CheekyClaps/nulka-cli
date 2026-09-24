@@ -177,8 +177,8 @@ from nulka_cli.hrf_manager import hrf_manager
 
 def get_active_model_name() -> str:
     """Helper to fetch the primary loaded model."""
-    from nulka_cli.utils import get_best_available_model
-    return get_best_available_model()
+    from nulka_cli.utils import ollama_llm
+    return ollama_llm.model
 
 def route_request(prompt: str, predefined_route: str = None) -> str:
     """Integrates dynamic HRF evaluation and routes the request."""
@@ -589,9 +589,22 @@ def load_ollama_model(model_name: str):
         # But wait, we want to just load it into memory maybe?
         # A simple 'ollama run' with an empty prompt loads it and exits.
         subprocess.run(["ollama", "run", model_name, ""], check=True, capture_output=True)
-        console.print(f"\n[bold green]✅ Model '{model_name}' loaded into memory successfully![/]")
+        
+        # Update the active LLM instance in memory
+        from nulka_cli.utils import ollama_llm
+        ollama_llm.model = model_name
+        
+        # Update the .env config so the choice persists
+        import os
+        from dotenv import set_key
+        CONFIG_PATH = os.path.expanduser("~/.nulka_cli_env")
+        set_key(CONFIG_PATH, "LOCAL_MODEL", model_name)
+        os.environ["LOCAL_MODEL"] = model_name
+        
+        console.print(f"\n[bold green]✅ Model '{model_name}' loaded into memory and set as active successfully![/]")
     except subprocess.CalledProcessError as e:
-        console.print(f"\n[bold red]❌ Failed to load model '{model_name}'. Please verify the name is correct. {e.stderr}[/]")
+        err_msg = e.stderr.decode() if e.stderr else str(e)
+        console.print(f"\n[bold red]❌ Failed to load model '{model_name}'. Please verify the name is correct. {err_msg}[/]")
     except Exception as e:
         console.print(f"\n[bold red]❌ Error: {e}[/]")
 

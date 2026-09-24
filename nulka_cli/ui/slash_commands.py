@@ -7,8 +7,8 @@ from nulka_cli.hrf_manager import hrf_manager
 
 # Inline implementation to avoid circular dependencies
 def get_active_model_name() -> str:
-    from nulka_cli.utils import get_best_available_model
-    return get_best_available_model()
+    from nulka_cli.utils import ollama_llm
+    return ollama_llm.model
 
 # Note: console, execute_teach_feedback, execute_expand_pager are imported/passed where needed
 # to avoid massive circular imports, we will keep the heavy lifting in cli.py or pass callables.

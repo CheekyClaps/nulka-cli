@@ -6,8 +6,8 @@ from nulka_cli.hrf_manager import hrf_manager
 
 # Inline implementation to avoid circular dependencies
 def get_active_model_name() -> str:
-    from nulka_cli.utils import local_model_name
-    return local_model_name
+    from nulka_cli.utils import ollama_llm
+    return ollama_llm.model
 
 class StatusBar:
     @staticmethod
