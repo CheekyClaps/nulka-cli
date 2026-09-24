@@ -14,7 +14,7 @@ def get_bottom_toolbar():
     return HTML(' <b>[A]</b> Accept   <b>[R]</b> Reject   <b>[Type Text]</b> Augment / Edit   <b>[Ctrl+C]</b> Cancel ')
 
 class TeacherToolInput(BaseModel):
-    agent_name: str = Field(description="The name of the agent whose instructions need to be updated (e.g., 'developer', 'tester', 'assistant').")
+    agent_name: str = Field(description="The name of the agent whose instructions need to be updated (e.g., 'creator', 'auditor', 'assistant').")
     proposed_rules: str = Field(description="The new instructions, rules, or lessons learned to persistently append to the agent's backstory markdown file.")
 
 class InteractiveTeacherTool(BaseTool):

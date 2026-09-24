@@ -67,7 +67,7 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
         return True
     elif cmd == "/agents":
         console.print("[bold magenta]🤖 Available NulkaCLI Departments:[/bold magenta]")
-        console.print("  - Router, Planner, Architect, Developer, Tester, Pentester, Security Officer, Network Engineer, Teacher")
+        console.print("  - Router, Strategist, Creator, Auditor, Analyst, Assistant, Teacher, External Oracle")
         return True
     
     # 3. Output Management
