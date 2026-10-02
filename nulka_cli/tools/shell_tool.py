@@ -1,6 +1,7 @@
 import os
 import subprocess
 from langchain.tools import BaseTool
+from nulka_cli.core.state import ask_user_safe
 
 class RunShellCommandTool(BaseTool):
     name: str = "run_shell_command"
@@ -17,6 +18,12 @@ class RunShellCommandTool(BaseTool):
             dir_path: The directory to run the command in.
         """
         try:
+            # Interactive Security Confirmation
+            print(f"\n\033[93m⚠️  Agent attempting to RUN COMMAND in '{dir_path}':\n> {command}\033[0m")
+            confirm = ask_user_safe("Allow this shell command? [Y/n] ❯ ").strip().lower()
+            if confirm and confirm != 'y':
+                return f"Action Aborted: User denied permission to execute command '{command}'."
+
             result = subprocess.run(
                 command,
                 cwd=dir_path,

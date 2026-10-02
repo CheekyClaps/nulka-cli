@@ -1,26 +1,30 @@
 import os
 import pytest
 from nulka_cli.tools.fs_tools import (
-    ReadFileTool, WriteFileTool, ReplaceTextTool, 
+    ReadFileTool, WriteFileTool, ReplaceTextTool,
     ListDirectoryTool, GlobSearchTool, GrepSearchTool
 )
 from nulka_cli.tools.shell_tool import RunShellCommandTool
 from nulka_cli.tools.web_search_tool import WebSearchTool
+import os
+from unittest.mock import patch
 
-def test_read_write_file_tool(tmp_path):
+@patch('nulka_cli.tools.fs_tools.ask_user_safe', return_value='y')
+def test_read_write_file_tool(mock_ask, tmp_path):
     """Test creating a file and reading it back."""
     test_file = tmp_path / "test.txt"
     content = "Hello NulkaCLI!"
-    
+
     writer = WriteFileTool()
     res = writer._run(str(test_file), content)
     assert "Successfully" in res
-    
-    reader = ReadFileTool()
-    res = reader._run(str(test_file))
-    assert res == content
 
-def test_replace_text_tool(tmp_path):
+    reader = ReadFileTool()
+    read_res = reader._run(str(test_file))
+    assert read_res == content
+
+@patch('nulka_cli.tools.fs_tools.ask_user_safe', return_value='y')
+def test_replace_text_tool(mock_ask, tmp_path):
     """Test targeting string replacement."""
     test_file = tmp_path / "test.txt"
     test_file.write_text("The old string is here.", encoding="utf-8")
@@ -63,7 +67,8 @@ def test_grep_search_tool(tmp_path):
     assert "config.yml" in res
     assert "dummy_key: DUMMY_12345" in res
 
-def test_run_shell_command_tool():
+@patch('nulka_cli.tools.shell_tool.ask_user_safe', return_value='y')
+def test_run_shell_command_tool(mock_ask):
     """Test executing a basic shell command."""
     shell = RunShellCommandTool()
     res = shell._run("echo 'hello from shell'")

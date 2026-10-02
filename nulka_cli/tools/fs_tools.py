@@ -1,9 +1,11 @@
 import os
 import re
 import fnmatch
+import shutil
 from pathlib import Path
 from typing import Optional
 from langchain.tools import BaseTool
+from nulka_cli.core.state import ask_user_safe
 
 class ReadFileTool(BaseTool):
     name: str = "read_file"
@@ -21,37 +23,69 @@ class ReadFileTool(BaseTool):
         except Exception as e:
             return f"Error reading file: {e}"
 
+def create_backup(file_path: str) -> None:
+    """Helper to create a .bak copy of a file before modifying it."""
+    if os.path.exists(file_path):
+        backup_path = f"{file_path}.bak"
+        shutil.copy2(file_path, backup_path)
+
 class WriteFileTool(BaseTool):
     name: str = "write_file"
-    description: str = "Writes complete content to a file, creating missing parent directories. Overwrites existing files."
+    description: str = "Writes complete content to a file, creating missing parent directories. Overwrites existing files. Automatically creates a .bak backup. Rejects writing empty strings to non-empty files to prevent accidental truncation."
 
-    def _run(self, file_path: str, content: str) -> str:
+    def _run(self, file_path: str, content: str, make_exec: bool = False) -> str:
         try:
+            # Interactive Security Confirmation
+            print(f"\n\033[93m⚠️  Agent attempting to WRITE to: {file_path}\033[0m")
+            confirm = ask_user_safe("Allow this write operation? [Y/n] ❯ ").strip().lower()
+            if confirm and confirm != 'y':
+                return f"Action Aborted: User denied permission to write to {file_path}."
+
+            # Safety check against accidental 0-byte truncation of existing files
+            if os.path.exists(file_path):
+                original_size = os.path.getsize(file_path)
+                if original_size > 0 and len(content.strip()) == 0:
+                    return f"Safety Error: Attempted to write empty content to existing file ({original_size} bytes). If you meant to clear it, delete it instead. Action aborted."
+                
+                create_backup(file_path)
+
             os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
-            return f"Successfully wrote to {file_path}"
+            
+            if make_exec:
+                os.chmod(file_path, 0o755)
+                return f"Successfully wrote and made executable: {file_path} (Backup saved as .bak)"
+                
+            return f"Successfully wrote to {file_path} (Backup saved as .bak)"
         except Exception as e:
             return f"Error writing file: {e}"
 
 class ReplaceTextTool(BaseTool):
     name: str = "replace"
-    description: str = "Replaces exact literal text within a file. Replaces the first exact match of old_string with new_string."
+    description: str = "Replaces exact literal text within a file. Automatically creates a .bak backup."
 
     def _run(self, file_path: str, old_string: str, new_string: str) -> str:
         try:
+            # Interactive Security Confirmation
+            print(f"\n\033[93m⚠️  Agent attempting to REPLACE text in: {file_path}\033[0m")
+            confirm = ask_user_safe("Allow this replace operation? [Y/n] ❯ ").strip().lower()
+            if confirm and confirm != 'y':
+                return f"Action Aborted: User denied permission to replace text in {file_path}."
+
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             
             if old_string not in content:
                 return "Error: old_string not found in file (must be an exact match)."
                 
+            create_backup(file_path)
             new_content = content.replace(old_string, new_string, 1)
             
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(new_content)
                 
-            return f"Successfully replaced text in {file_path}"
+            return f"Successfully replaced text in {file_path} (Backup saved as .bak)"
         except Exception as e:
             return f"Error replacing text: {e}"
 
