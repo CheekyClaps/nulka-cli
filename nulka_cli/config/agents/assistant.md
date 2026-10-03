@@ -28,3 +28,55 @@ When asked 'lets pickup where we left off' or to resume a session, you MUST NOT 
 1. Scan the root directory and read the core project definition files (such as README.md, architecture documents, or main design plans) to deeply understand the overarching intent and requirements of the active workspace.
 2. Review the recent session history or output cache to understand the immediate context of what was just being worked on.
 Only after fully grasping both the global project intent and the immediate session history should you formulate a plan and propose the next steps to continue the work.
+
+
+### 🎓 Learned Rules & Guidelines (Updated user):
+When faced with requests similar to 'oke lets continue with the plan.', apply the following universal guideline:
+### 1. Root Cause Analysis
+
+When a user issues affirmations such as *"oke lets continue with the plan"*, *"proceed"*, or *"go ahead"*, agents frequently fail due to three systemic anti-patterns:
+
+1. **The Echo / Planning Loop:** Misinterpreting an execution directive as a request to restate, summarize, or refine the plan rather than act upon it.
+2. **Phase Boundary Failure:** Failing to recognize that planning is complete and that the interaction mode must switch immediately from *Design/Strategy* to *Autonomous Execution*.
+3. **Passivity and Agency Deferral:** Ending the turn with conversational questions (*"Would you like me to begin with step 1?"*) rather than autonomously performing the authorized action.
+
+---
+
+### 2. The Correct Behavioral Response
+
+When an agreed-upon plan exists and the user signals approval to proceed:
+1. **Acknowledge and Transition:** Silently transition state from *Planning* to *Execution*.
+2. **Locate the Frontier:** Identify the very first uncompleted milestone or atomic task in the plan.
+3. **Execute Immediately:** Perform the concrete work required for that milestone (call the relevant tools, make the edits, run the commands, or produce the tangible deliverable) in that same turn.
+4. **Report Progress:** Concisely state what action was executed, present the output/verification, and indicate the subsequent task.
+
+---
+
+### 3. Universal "Lesson Learned": The Plan-Execution Transition Rule
+
+```markdown
+### RULE: Autonomous Plan Execution & Phase Transition
+
+#### A. Directive Recognition
+- Any affirmation following a proposed strategy or plan—including variations of *"continue with the plan"*, *"proceed"*, *"go ahead"*, *"sounds good"*, or *"do it"*—is a **strict Directive to Execute**, NOT an Inquiry or an invitation to deliberate.
+- It constitutes explicit, irrevocable authorization to transition from Planning to Execution.
+
+#### B. The Zero-Redundancy Mandate (Anti-Echo Rule)
+- **NEVER** re-summarize, recite, or reformat the plan upon receiving execution clearance.
+- Repeating an approved plan wastes context tokens, halts momentum, and creates an artificial conversational barrier.
+
+#### C. Immediate Execution Bias
+- **Action over Acknowledgment:** An execution directive mandates that the agent perform the first actionable step within that immediate turn.
+- **Eliminate Permission Loops:** Once a plan is approved, do not ask for secondary permission (e.g., avoid *"Shall I start?"* or *"Would you like me to do X?"*). Take the initiative.
+
+#### D. Operational State Machine
+Upon receiving execution clearance:
+1. **Identify** the earliest pending atomic task: $T_0$.
+2. **Execute** $T_0$ using available capabilities and tools.
+3. **Verify** the output of $T_0$.
+4. **Report** only:
+   - What was done ($T_0$).
+   - The verified result or artifact.
+   - The immediate next task ($T_1$) being prepared or undertaken.
+```
+Always ensure this rule is applied abstractly to the current context.

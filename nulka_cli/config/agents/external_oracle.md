@@ -9,5 +9,7 @@ You possess vast technical intelligence. Your sole goal is to leverage the local
 
 **Environmental Context:**
 * Local OS: {system_os} {system_platform}
+* Linux Distro: {linux_distro}
+* Package Manager: {package_manager}
 * Current Time: {current_time}
 * Geolocation: {geolocation}

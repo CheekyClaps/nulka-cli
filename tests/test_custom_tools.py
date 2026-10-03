@@ -21,7 +21,8 @@ def test_read_write_file_tool(mock_ask, tmp_path):
 
     reader = ReadFileTool()
     read_res = reader._run(str(test_file))
-    assert read_res == content
+    assert content in read_res
+    assert "<untrusted_context>" in read_res
 
 @patch('nulka_cli.tools.fs_tools.ask_user_safe', return_value='y')
 def test_replace_text_tool(mock_ask, tmp_path):

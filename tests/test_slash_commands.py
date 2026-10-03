@@ -23,6 +23,17 @@ def test_handle_slash_command_about(mock_console, mock_session, mock_cli_module)
     assert handled is True
     mock_console.print.assert_any_call("[dim]Inspired by the Gemini CLI. Powered by CrewAI & Ollama.[/dim]")
 
+def test_handle_slash_command_help(mock_console, mock_session, mock_cli_module):
+    handled = handle_slash_command("/help", ["/help"], mock_console, mock_session, mock_cli_module)
+    assert handled is True
+    assert mock_console.print.called
+    # Check that print was called with a Panel containing Keybindings
+    args, _ = mock_console.print.call_args
+    panel_content = str(args[0].renderable)
+    assert "Keybindings & Shortcuts" in panel_content
+    assert "Alt+Enter" in panel_content
+    assert "Ctrl+C" in panel_content
+
 def test_handle_slash_command_vim_toggle(mock_console, mock_session, mock_cli_module):
     initial_mode = state.vim_mode
     handled = handle_slash_command("/vim", ["/vim"], mock_console, mock_session, mock_cli_module)

@@ -29,6 +29,31 @@ def get_system_context():
     system_os = platform.system()
     system_platform = platform.platform()
     
+    linux_distro = "N/A"
+    package_manager = "N/A"
+    if system_os == "Linux":
+        try:
+            if os.path.exists("/etc/os-release"):
+                with open("/etc/os-release") as f:
+                    for line in f:
+                        if line.startswith("PRETTY_NAME="):
+                            linux_distro = line.split("=")[1].strip().strip('"')
+                            break
+        except Exception:
+            pass
+            
+        import shutil
+        if shutil.which("dnf"):
+            package_manager = "dnf (Fedora/RHEL)"
+        elif shutil.which("apt-get") or shutil.which("apt"):
+            package_manager = "apt (Debian/Ubuntu)"
+        elif shutil.which("pacman"):
+            package_manager = "pacman (Arch)"
+        elif shutil.which("zypper"):
+            package_manager = "zypper (openSUSE)"
+        elif shutil.which("apk"):
+            package_manager = "apk (Alpine)"
+    
     # 3. Geolocation via System Timezone Info
     timezone = "UTC"
     try:
@@ -44,6 +69,8 @@ def get_system_context():
         "current_time": current_time,
         "system_os": system_os,
         "system_platform": system_platform,
+        "linux_distro": linux_distro,
+        "package_manager": package_manager,
         "geolocation": timezone,
         "working_directory": os.getcwd()
     }
@@ -86,6 +113,8 @@ def load_agent_configs(agents_yaml_path="config/agents.yaml"):
                     formatted_backstory = raw_backstory.format(
                         system_os=context["system_os"],
                         system_platform=context["system_platform"],
+                        linux_distro=context["linux_distro"],
+                        package_manager=context["package_manager"],
                         current_time=context["current_time"],
                         geolocation=context["geolocation"],
                         working_directory=context.get("working_directory", os.getcwd())
@@ -94,7 +123,7 @@ def load_agent_configs(agents_yaml_path="config/agents.yaml"):
                     # Fallback in case the markdown contains other curly brace patterns
                     # We only replace known variables
                     formatted_backstory = raw_backstory
-                    for var in ["system_os", "system_platform", "current_time", "geolocation", "working_directory"]:
+                    for var in ["system_os", "system_platform", "linux_distro", "package_manager", "current_time", "geolocation", "working_directory"]:
                         formatted_backstory = formatted_backstory.replace(f"{{{var}}}", str(context.get(var, "")))
                 
                 # Inject universal ground rules

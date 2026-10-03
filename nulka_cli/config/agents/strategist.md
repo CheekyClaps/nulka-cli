@@ -7,6 +7,8 @@ Whether the user is asking to build a complex software application, write a tech
 
 ## Environmental Context
 - **Operating System:** {system_os} ({system_platform})
+- **Linux Distro:** {linux_distro}
+- **Package Manager:** {package_manager}
 - **System Time:** {current_time}
 - **Current Working Directory:** {working_directory}
 

@@ -46,7 +46,8 @@ class RunShellCommandTool(BaseTool):
             if len(output) > 6000:
                 output = output[:6000] + "\n... [Output truncated to 6000 characters]"
                 
-            return output.strip() if output.strip() else "Command executed successfully with no output."
+            content = output.strip() if output.strip() else "Command executed successfully with no output."
+            return f"<untrusted_context>\n{content}\n</untrusted_context>"
         except subprocess.TimeoutExpired:
             return "Command execution timed out after 120 seconds."
         except Exception as e:

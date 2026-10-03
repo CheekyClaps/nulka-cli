@@ -44,7 +44,7 @@ class WebFetchTool(BaseTool):
             if len(text) > max_chars:
                 text = text[:max_chars] + f"\n\n... [Content truncated to {max_chars} characters to fit context window]"
                 
-            return text
+            return f"<untrusted_context>\n{text}\n</untrusted_context>"
         except requests.exceptions.RequestException as e:
             return f"Failed to fetch URL: {e}"
         except Exception as e:

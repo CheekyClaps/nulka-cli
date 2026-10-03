@@ -70,18 +70,25 @@ DEBUG_MODE = False
 
 from nulka_cli.core.state import state
 
+import re
+
 def format_condensed_output(text: str, max_lines: int = 40) -> str:
-    """Smartly truncates massive string outputs for the terminal UI."""
+    """Smartly truncates massive string outputs for the terminal UI and colorizes reasoning blocks."""
     if not text:
         return text
+
+    # Colorize <think>...</think> blocks using Rich markup
+    # Using re.DOTALL to match across newlines, and (?:</think>|$) to handle unclosed tags
+    text = re.sub(r'<think>(.*?)(?:</think>|$)', r'[dim italic cyan]<think>\1</think>[/]', text, flags=re.DOTALL)
+
     lines = text.split("\n")
     if len(lines) <= max_lines:
         return text
-        
+
     first_part = "\n".join(lines[:15])
     last_part = "\n".join(lines[-15:])
     hidden = len(lines) - 30
-    
+
     divider = f"\n\n[dim cyan]... [ {hidden} Lines Condensed. Type /expand to view full output ] ...[/dim cyan]\n\n"
     return first_part + divider + last_part
 
@@ -110,10 +117,10 @@ def analyze_prompt_intent(prompt: str) -> dict:
         "TASK 2 - ROUTING:\n"
         "Assign the request to EXACTLY ONE of these versatile archetypes based on the intent:\n"
         "- STRATEGIST: Planning, structural design, architecture, defining roadmaps, or breaking down tasks.\n"
-        "- CREATOR: Writing code, generating documents, writing essays, creating configuration files, or building features.\n"
+        "- CREATOR: Writing code, generating documents, writing essays, creating configuration files, building features, OR explicitly executing/continuing an agreed-upon plan (e.g., 'continue with the plan', 'proceed', 'do it').\n"
         "- AUDITOR: Reviewing work, QA testing, searching for secrets/vulnerabilities, verifying compliance, or factual fact-checking.\n"
         "- ANALYST: Researching topics, parsing data/logs, running system operations/shell diagnostics, or extracting intelligence.\n"
-        "- GENERAL: General conversational chats or vague instructions (e.g. 'let's go', 'continue').\n\n"
+        "- GENERAL: General conversational chats or vague instructions.\n\n"
         "OUTPUT FORMAT (You must output exactly these two lines):\n"
         "SCRUTINY: [Your question or PROCEED]\n"
         "ROUTE: [Category Name]\n\n"
@@ -748,6 +755,8 @@ def run_interactive_cli():
     welcome_text.append("Strategist, Creator, Auditor, Analyst, Router, Teacher, Oracle\n", style="bold magenta")
     welcome_text.append("Special Tooling: ", style="dim")
     welcome_text.append("Workspace Automation, Web Search, Dynamic HRF & Fallback Oracle\n", style="bold blue")
+    welcome_text.append("Keybindings: ", style="dim")
+    welcome_text.append("Alt+Enter (Newline) • Ctrl+C (Interrupt generation) • Enter (Submit)\n", style="bold yellow")
     welcome_text.append("Interactive Help: ", style="dim")
     welcome_text.append("Type /help to view command list or /risk to preview prompt danger\n", style="bold green")
     welcome_text.append("Type '/quit', 'exit', or 'quit' to terminate.\n", style="italic")
@@ -773,7 +782,7 @@ def run_interactive_cli():
 
     @kb.add('c-j')
     def _(event):
-        """Ctrl+J (which Unix terminals send on Shift+Enter) inserts a literal newline."""
+        """Ctrl+J (or Shift+Enter on some terminals) inserts a literal newline."""
         event.current_buffer.insert_text('\n')
 
     @kb.add('escape', 'enter')
@@ -850,6 +859,9 @@ def run_interactive_cli():
         # 3. Execute workflow
         try:
             execute_crew_workflow(route, user_input)
+        except KeyboardInterrupt:
+            console.print("\n[bold red]🛑 Generation interrupted by user. Returning to prompt...[/]")
+            continue
         except Exception as e:
             console.print(f"[bold red]Execution Error: {e}[/]")
 

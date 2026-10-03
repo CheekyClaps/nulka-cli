@@ -54,8 +54,12 @@ class OracleCLITool(BaseTool):
                     output += f"\n[Errors/Warnings]:\n{filtered_stderr}"
                 
             if result.returncode != 0:
-                return f"Oracle CLI execution returned error code {result.returncode}.\nOutput:\n{output}"
+                return f"Error: Oracle CLI execution returned error code {result.returncode}.\nOutput:\n{output}"
                 
+            if "[Errors/Warnings]:" in output and "Error:" in output:
+                # If there are severe errors/stack traces in a 0-exit code response, flag it so the system handles it as a failure
+                return f"Error: Oracle returned a severe exception.\n{output}"
+
             return output.strip() if output.strip() else "Oracle CLI executed successfully but returned empty output."
             
         except FileNotFoundError:

@@ -302,6 +302,12 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
 def print_help(console):
     from rich.panel import Panel
     console.print(Panel(
+        "[bold yellow]Keybindings & Shortcuts[/bold yellow]\n"
+        "  [bold cyan]Enter[/]                  Submit prompt / execute query\n"
+        "  [bold cyan]Alt+Enter / Esc+Enter[/]  Insert literal newline (multi-line input)\n"
+        "  [bold cyan]Ctrl+J[/]                 Insert literal newline (alternative)\n"
+        "  [bold cyan]Ctrl+C[/]                 Interrupt & stop running model generation\n"
+        "  [bold cyan]Ctrl+D[/]                 Exit NulkaCLI session (when prompt is empty)\n\n"
         "[bold yellow]Core System[/bold yellow]\n"
         "  [bold cyan]/about[/]              Show NulkaCLI version and diagnostic info\n"
         "  [bold cyan]/clear[/]              Clear the screen and reset session context\n"
@@ -316,6 +322,7 @@ def print_help(console):
         "  [bold cyan]/metrics[/]            Toggle the live bottom toolbar for performance metrics\n"
         "  [bold cyan]/debug[/]              Toggle verbose agent thoughts & details\n\n"
         "[bold yellow]Workspace & Directory Management[/bold yellow]\n"
+        "  [bold cyan]/init[/]               Initialize a new workspace in the current directory\n"
         "  [bold cyan]/cd [path][/]          Change current working directory\n"
         "  [bold cyan]/pwd[/]                Show current working directory path\n"
         "  [bold cyan]/ls [path][/]           List contents of a directory (defaults to current)\n"

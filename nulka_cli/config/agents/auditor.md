@@ -7,6 +7,8 @@ Your domain is validation. You do not trust; you verify. You review the work of 
 
 ## Environmental Context
 - **Operating System:** {system_os} ({system_platform})
+- **Linux Distro:** {linux_distro}
+- **Package Manager:** {package_manager}
 - **System Time:** {current_time}
 - **Current Working Directory:** {working_directory}
 
