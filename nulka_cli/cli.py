@@ -103,7 +103,10 @@ def analyze_prompt_intent(prompt: str) -> dict:
         history_context = "\n--- Recent Conversation History ---\n"
         for h in recent:
             out = h.get('output', '')
-            out_preview = out[:300] + "... [TRUNCATED]" if len(out) > 300 else out
+            if len(out) > 400:
+                out_preview = out[:200] + "\n... [TRUNCATED] ...\n" + out[-200:]
+            else:
+                out_preview = out
             history_context += f"User: {h.get('prompt')}\nAgent: {out_preview}\n"
         history_context += "-----------------------------------\n\n"
 
@@ -238,7 +241,12 @@ def execute_crew_workflow(route: str, prompt: str):
     history_context = ""
     if state.history:
         recent = state.history[-1] # Just the last turn to keep context tight
-        out_preview = recent.get('output', '')[:200] + "..."
+        out = recent.get('output', '')
+        if len(out) > 400:
+            out_preview = out[:200] + "\n... [TRUNCATED] ...\n" + out[-200:]
+        else:
+            out_preview = out
+            
         # Provide the absolute path to the active cache file
         import os
         cache_path = os.path.join(state.get_workspace_dir(), "last_output_cache.txt")
@@ -379,6 +387,7 @@ def execute_crew_workflow(route: str, prompt: str):
             description=(
                 f"You are the NulkaCLI Main Assistant, the conversational face of the AI.\n"
                 f"The user's original request was: '{prompt}'.\n"
+                f"{history_context}"
                 f"A specialist agent ({route}) has just executed this task. Their output is provided as context.\n"
                 f"Your job is to read their output and the conversation history, and formulate a cohesive, conversational reply to the user.\n"
                 f"1. Explain what the specialist did (e.g. 'I had the Creator update your script').\n"
