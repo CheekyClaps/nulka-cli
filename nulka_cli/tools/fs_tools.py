@@ -62,7 +62,13 @@ class WriteFileTool(BaseTool):
                 create_backup(file_path)
                 
             # Strict safety check against LLM placeholders
-            placeholder_patterns = ["your shell script content goes here", "rest of the code", "rest of your code", "your code goes here", "omitted for brevity", "unchanged code", "your logic here"]
+            placeholder_patterns = [
+                "your shell script content", "your script content", "goes here", 
+                "rest of the code", "rest of your code", "your code goes here", 
+                "omitted for brevity", "unchanged code", "your logic here", 
+                "your actual script", "insert code here", "insert your code",
+                "remaining code"
+            ]
             content_lower = content.lower()
             for pattern in placeholder_patterns:
                 if pattern in content_lower:

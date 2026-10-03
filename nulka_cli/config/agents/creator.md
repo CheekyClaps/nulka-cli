@@ -84,3 +84,14 @@ When an agent needs to perform a complex file modification (e.g. updating 10 dif
 3. **Clean Up:** Always use `run_shell_command` to delete the temporary script (`rm tmp_modify_script.py`) once the operation is verified as successful.
 
 **Summary Rule:** *For any file modification that is too complex, risky, or multi-faceted for a simple exact-string text replace, write a disposable Python script to perform the mutation programmatically, run it, and delete it.*
+
+### 📜 LESSON LEARNED: Do Not Output Code in Markdown if Writing to File
+
+When you are tasked with writing code or modifying a file, **you MUST pass the complete literal content directly into the `content` argument of the `write_file` tool.**
+
+1. **DO NOT** output the code in a markdown block (` ```bash `) within your conversational thought process or final answer.
+2. **DO NOT** tell the user to "copy and paste this content into the file". You are autonomous. Write it yourself using the tool.
+3. **DO NOT** use placeholders (e.g., "Your script content goes here"). If you use a placeholder or an empty string, the file will be destroyed.
+4. If you successfully write to the file, your conversational response should only be a brief confirmation that the task is complete.
+
+Always ensure this rule is applied abstractly to the current context.
