@@ -59,6 +59,13 @@ class WriteFileTool(BaseTool):
 
             # Safety check against accidental 0-byte truncation of existing files
             if os.path.exists(file_path):
+                original_size = os.path.getsize(file_path)
+                new_size = len(content)
+                
+                # Heuristic: If we are shrinking a file by more than 80% and the original was > 150 bytes, it's likely a lazy LLM placeholder truncation.
+                if original_size > 150 and new_size < (original_size * 0.2):
+                     return f"Validation Error: Drastic size reduction detected (Original: {original_size} bytes, New: {new_size} bytes). This usually indicates you used a placeholder instead of writing the full file. You MUST write the ENTIRE, fully functional file content. Action aborted."
+                
                 create_backup(file_path)
                 
             # Strict safety check against LLM placeholders
@@ -67,7 +74,8 @@ class WriteFileTool(BaseTool):
                 "rest of the code", "rest of your code", "your code goes here", 
                 "omitted for brevity", "unchanged code", "your logic here", 
                 "your actual script", "insert code here", "insert your code",
-                "remaining code"
+                "remaining code", "complete sh script content", "content here",
+                "full script here"
             ]
             content_lower = content.lower()
             for pattern in placeholder_patterns:
