@@ -373,6 +373,24 @@ def execute_crew_workflow(route: str, prompt: str):
             if DEBUG_MODE:
                 console.print(f"[dim]🛡️  Multi-Agent Peer Review: Fact-Checker appended to workflow due to HRF Score {hrf_score}[/dim]")
 
+    # Single-Agent conversational continuity: Append the Main Assistant to format the final reply
+    if route not in ["ORACLE", "GENERAL"]:
+        assistant_reporting_task = Task(
+            description=(
+                f"You are the NulkaCLI Main Assistant, the conversational face of the AI.\n"
+                f"The user's original request was: '{prompt}'.\n"
+                f"A specialist agent ({route}) has just executed this task. Their output is provided as context.\n"
+                f"Your job is to read their output and the conversation history, and formulate a cohesive, conversational reply to the user.\n"
+                f"1. Explain what the specialist did (e.g. 'I had the Creator update your script').\n"
+                f"2. Maintain conversational continuity with the user.\n"
+                f"3. Do NOT re-execute the task or use tools; just report the outcome clearly based strictly on the specialist's output."
+            ),
+            expected_output="A cohesive, conversational reply acting as the face of the CLI.",
+            agent=agents["assistant"]
+        )
+        tasks.append(assistant_reporting_task)
+        crew_agents.append(agents["assistant"])
+
     # Update state tracking for the /teach feedback loop
     state.last_user_prompt = prompt
     state.last_route = route
@@ -421,11 +439,14 @@ def execute_crew_workflow(route: str, prompt: str):
         steps.extend(["The Auditor"])
     elif route == "ANALYST":
         steps.extend(["The Analyst"])
-    else: # GENERAL
-        steps.extend(["General Assistant"])
 
     if 4 <= hrf_score <= 7 and route != "ORACLE":
         steps.append("Fact-Checker (Peer Review)")
+
+    if route not in ["ORACLE", "GENERAL"]:
+        steps.append("Assistant (Reporter)")
+    elif route == "GENERAL":
+        steps.extend(["General Assistant"])
 
     # Dynamically check if the Oracle CLI Tool was invoked during this run
     if "Oracle Answer Retrieved" in result_text or "Oracle CLI" in result_text or "retrieved from the Oracle" in result_text:
