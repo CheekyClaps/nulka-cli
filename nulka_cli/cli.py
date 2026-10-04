@@ -17,7 +17,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 # Suppress Pydantic warnings
-warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic.*")
 
 # Suppress OpenTelemetry TracerProvider overriding warnings caused by sequential crew kickoffs
 logging.getLogger("opentelemetry.trace").setLevel(logging.ERROR)

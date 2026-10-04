@@ -1,4 +1,8 @@
 import json
+import warnings
+
+# Suppress annoying Pydantic V1/V2 mixing warnings caused by CrewAI/Langchain
+warnings.filterwarnings("ignore", message=".*Mixing V1 models and V2 models.*")
 
 import regex
 from crewai.agents.tools_handler import ToolsHandler
