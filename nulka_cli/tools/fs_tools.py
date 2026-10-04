@@ -169,9 +169,12 @@ class SmartEditTool(BaseTool):
             else:
                 new_content = new_content.strip('\n')
                 
-            # Basic sanity check (ensure it didn't just truncate the whole file)
+            # Basic sanity check (ensure it didn't just truncate the whole file or output conversational text)
             if not new_content or (len(new_content) < len(content) * 0.15 and len(content) > 150):
                 return "Error: Internal LLM failed to generate a valid replacement (suspected placeholder output). Action aborted."
+                
+            if len(content) == 0 and "please provide" in new_content.lower():
+                return "Error: Target file was empty, and the LLM refused to edit it. If creating a new file, use write_file instead."
 
             create_backup(file_path)
             
