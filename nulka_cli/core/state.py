@@ -95,9 +95,15 @@ def ask_user_safe(prompt_text: str, default: str = "", style_dict: dict | None =
     
     if use_fallback:
         try:
-            return input(prompt_text).strip()
+            # Force write to raw stdout to bypass CrewAI's stdout capture block
+            sys.__stdout__.write(f"\n{prompt_text}")
+            sys.__stdout__.flush()
+            val = sys.__stdin__.readline()
+            if not val:  # EOF
+                return "n"
+            return val.strip()
         except (KeyboardInterrupt, EOFError):
-            return ""
+            return "n"
             
     # Use advanced prompt toolkit
     from prompt_toolkit import prompt
@@ -111,6 +117,11 @@ def ask_user_safe(prompt_text: str, default: str = "", style_dict: dict | None =
     except Exception:
         # Final fail-safe if prompt toolkit throws internal terminal errors
         try:
-            return input(prompt_text).strip()
+            sys.__stdout__.write(f"\n{prompt_text}")
+            sys.__stdout__.flush()
+            val = sys.__stdin__.readline()
+            if not val:  # EOF
+                return "n"
+            return val.strip()
         except (KeyboardInterrupt, EOFError):
-            return ""
+            return "n"

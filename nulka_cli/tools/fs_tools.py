@@ -150,8 +150,8 @@ class SmartEditTool(BaseTool):
                 template=(
                     "You are a strict code editing machine. You will be given an existing file and an instruction. "
                     "You must output the ENTIRE modified file content. "
-                    "Do NOT output any conversational text. Do NOT use placeholders like 'rest of code'. "
-                    "Output ONLY the new file content inside a Markdown block (e.g. ```text ... ```).\n\n"
+                    "Do NOT output any conversational text whatsoever. Do NOT use placeholders like 'rest of code'. "
+                    "Output ONLY the new file content exactly as it should be written, wrapped inside a SINGLE Markdown block (e.g. ```\n... \n```).\n\n"
                     "INSTRUCTION:\n{instruction}\n\n"
                     "FILE CONTENT:\n{content}"
                 )
@@ -165,12 +165,12 @@ class SmartEditTool(BaseTool):
             new_content = response
             block_match = re.search(r'```[a-zA-Z]*\n(.*?)```', response, re.DOTALL)
             if block_match:
-                new_content = block_match.group(1).strip()
+                new_content = block_match.group(1).strip('\n')
             else:
-                new_content = new_content.strip()
+                new_content = new_content.strip('\n')
                 
-            # Basic sanity check
-            if not new_content or len(new_content) < len(content) * 0.2:
+            # Basic sanity check (ensure it didn't just truncate the whole file)
+            if not new_content or (len(new_content) < len(content) * 0.15 and len(content) > 150):
                 return "Error: Internal LLM failed to generate a valid replacement (suspected placeholder output). Action aborted."
 
             create_backup(file_path)
