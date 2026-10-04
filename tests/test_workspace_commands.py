@@ -1,14 +1,13 @@
-import sys
 import os
-import unittest
+import sys
 import tempfile
-from unittest.mock import patch, MagicMock
+import unittest
 
 # Add workspace root to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from nulka_cli.core.state import state
-from nulka_cli.cli import run_interactive_cli
+
 
 class TestWorkspaceCommands(unittest.TestCase):
     def setUp(self):
@@ -28,7 +27,6 @@ class TestWorkspaceCommands(unittest.TestCase):
 
     def test_get_metrics_toolbar_includes_cwd(self):
         """Verify that the status bar / metrics toolbar includes the current directory."""
-        from prompt_toolkit.formatted_text import HTML
         # We need to find get_metrics_toolbar from the local scope of run_interactive_cli or mock it
         # But we can also test it by extracting get_metrics_toolbar logic
         # Let's test the formatted HTML text directly by recreating/checking the format logic

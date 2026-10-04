@@ -1,21 +1,27 @@
 import os
-import time
-import yaml
 import platform
+import time
 from datetime import datetime
+
+import yaml
 from crewai import Agent
 from langchain_community.llms import Ollama
-from nulka_cli.tools.oracle_cli_tool import OracleCLITool
-from nulka_cli.tools.interactive_teacher_tool import InteractiveTeacherTool
+
 from nulka_cli.tools.consult_oracle_tool import ConsultOracleTool
-from nulka_cli.tools.web_search_tool import WebSearchTool
-from nulka_cli.tools.web_fetch_tool import WebFetchTool
 from nulka_cli.tools.fs_tools import (
-    ReadFileTool, WriteFileTool, SmartEditTool, 
-    ListDirectoryTool, GlobSearchTool, GrepSearchTool
+    GlobSearchTool,
+    GrepSearchTool,
+    ListDirectoryTool,
+    ReadFileTool,
+    SmartEditTool,
+    WriteFileTool,
 )
+from nulka_cli.tools.interactive_teacher_tool import InteractiveTeacherTool
+from nulka_cli.tools.oracle_cli_tool import OracleCLITool
 from nulka_cli.tools.shell_tool import RunShellCommandTool
 from nulka_cli.tools.ui_tools import AskUserTool, UpdateTopicTool
+from nulka_cli.tools.web_fetch_tool import WebFetchTool
+from nulka_cli.tools.web_search_tool import WebSearchTool
 
 # (Moved logic to bottom of file)
 
@@ -100,7 +106,7 @@ def load_agent_configs(agents_yaml_path="config/agents.yaml"):
         except Exception:
             pass
     
-    for agent_key, agent_config in agents_data.items():
+    for agent_config in agents_data.values():
         backstory_file = agent_config.get("backstory_file")
         if backstory_file:
             # Resolve relative path safely
@@ -119,7 +125,7 @@ def load_agent_configs(agents_yaml_path="config/agents.yaml"):
                         geolocation=context["geolocation"],
                         working_directory=context.get("working_directory", os.getcwd())
                     )
-                except KeyError as ke:
+                except KeyError:
                     # Fallback in case the markdown contains other curly brace patterns
                     # We only replace known variables
                     formatted_backstory = raw_backstory
@@ -194,7 +200,7 @@ def instantiate_agents(custom_tools=None):
             agent_tools.extend(custom_tools)
             
         # The teacher and router agents are allowed to delegate tasks to others
-        allow_delegation = True if agent_key in ["router", "teacher"] else False
+        allow_delegation = agent_key in ["router", "teacher"]
             
         agents[agent_key] = Agent(
             role=config["role"],
@@ -220,7 +226,7 @@ def is_ollama_running(url="http://localhost:11434"):
 def start_ollama_server():
     """Starts the local Ollama server in the background."""
     import subprocess
-    import requests
+
     if is_ollama_running():
         return True, "Ollama is already running."
         

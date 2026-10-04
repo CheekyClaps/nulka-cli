@@ -2,8 +2,8 @@ import os
 import sys
 
 from nulka_cli.core.state import state
-from nulka_cli.utils import get_system_context
 from nulka_cli.hrf_manager import hrf_manager
+
 
 # Inline implementation to avoid circular dependencies
 def get_active_model_name() -> str:
@@ -254,7 +254,7 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
         thresh = hrf_manager.get_threshold(active_model)
         
         status = "[bold green]SAFE[/]" if score < thresh else "[bold red]HIGH RISK (WILL ROUTE TO ORACLE)[/]"
-        console.print(f"\n[bold cyan]Prompt Risk Analysis:[/bold cyan]")
+        console.print("\n[bold cyan]Prompt Risk Analysis:[/bold cyan]")
         console.print(f"Query: '{query}'")
         console.print(f"Score: [bold yellow]{score}[/bold yellow] (Threshold: {thresh:.2f}) -> {status}\n")
         return True
@@ -295,8 +295,9 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
             
         console.print("[bold cyan]🔄 Compressing session history using local LLM...[/bold cyan]")
         try:
-            from nulka_cli.utils import ollama_llm
             from langchain.prompts import PromptTemplate
+
+            from nulka_cli.utils import ollama_llm
             
             history_text = ""
             for h in state.history:

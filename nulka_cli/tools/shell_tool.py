@@ -1,7 +1,9 @@
-import os
 import subprocess
+
 from langchain.tools import BaseTool
+
 from nulka_cli.core.state import ask_user_safe
+
 
 class RunShellCommandTool(BaseTool):
     name: str = "run_shell_command"

@@ -1,8 +1,11 @@
 import os
-import pytest
 from unittest.mock import MagicMock
-from nulka_cli.ui.slash_commands import handle_slash_command
+
+import pytest
+
 from nulka_cli.core.state import state
+from nulka_cli.ui.slash_commands import handle_slash_command
+
 
 @pytest.fixture
 def mock_console():

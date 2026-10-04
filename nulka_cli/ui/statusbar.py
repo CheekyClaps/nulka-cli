@@ -1,8 +1,10 @@
 import os
+
 from prompt_toolkit.formatted_text import HTML
 
 from nulka_cli.core.state import state
 from nulka_cli.hrf_manager import hrf_manager
+
 
 # Inline implementation to avoid circular dependencies
 def get_active_model_name() -> str:

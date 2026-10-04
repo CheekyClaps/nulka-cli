@@ -1,17 +1,19 @@
+import fnmatch
 import os
 import re
-import fnmatch
 import shutil
 from pathlib import Path
-from typing import Optional
+
 from langchain.tools import BaseTool
+
 from nulka_cli.core.state import ask_user_safe
+
 
 class ReadFileTool(BaseTool):
     name: str = "read_file"
     description: str = "Reads the content of a specified file. Optionally use start_line and end_line for targeted reads."
 
-    def _run(self, file_path: str, start_line: Optional[int] = None, end_line: Optional[int] = None) -> str:
+    def _run(self, file_path: str, start_line: int | None = None, end_line: int | None = None) -> str:
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
@@ -26,6 +28,7 @@ class ReadFileTool(BaseTool):
             return f"Error reading file: {e}"
 
 import datetime
+
 
 def create_backup(file_path: str) -> None:
     """Helper to create a timestamped .bak copy of a file before modifying it."""
@@ -55,7 +58,7 @@ class WriteFileTool(BaseTool):
                 return f"Action Aborted: User denied permission to write to {file_path}."
 
             if not content.strip():
-                return f"Safety Error: Attempted to write an empty file. If you meant to delete the file, use a shell command to remove it. Action aborted."
+                return "Safety Error: Attempted to write an empty file. If you meant to delete the file, use a shell command to remove it. Action aborted."
 
             # Safety check against accidental 0-byte truncation of existing files
             if os.path.exists(file_path):
@@ -115,8 +118,9 @@ class SmartEditTool(BaseTool):
                 content = f.read()
 
             # Import the local LLM dynamically to avoid circular dependencies
-            from nulka_cli.utils import ollama_llm
             from langchain.prompts import PromptTemplate
+
+            from nulka_cli.utils import ollama_llm
             
             prompt = PromptTemplate(
                 input_variables=["instruction", "content"],
@@ -130,7 +134,7 @@ class SmartEditTool(BaseTool):
                 )
             )
             
-            print(f"\033[90m[Interpretation Layer: Processing edit with local LLM...]\033[0m")
+            print("\033[90m[Interpretation Layer: Processing edit with local LLM...]\033[0m")
             chain = prompt | ollama_llm
             response = chain.invoke({"instruction": instruction, "content": content})
             

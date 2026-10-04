@@ -1,13 +1,16 @@
-import os
-import pytest
+from unittest.mock import patch
+
 from nulka_cli.tools.fs_tools import (
-    ReadFileTool, WriteFileTool, ReplaceTextTool,
-    ListDirectoryTool, GlobSearchTool, GrepSearchTool
+    GlobSearchTool,
+    GrepSearchTool,
+    ListDirectoryTool,
+    ReadFileTool,
+    ReplaceTextTool,
+    WriteFileTool,
 )
 from nulka_cli.tools.shell_tool import RunShellCommandTool
 from nulka_cli.tools.web_search_tool import WebSearchTool
-import os
-from unittest.mock import patch
+
 
 @patch('nulka_cli.tools.fs_tools.ask_user_safe', return_value='y')
 def test_read_write_file_tool(mock_ask, tmp_path):

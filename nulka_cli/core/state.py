@@ -1,6 +1,7 @@
-import sys
-import os
 import json
+import os
+import sys
+
 
 class SessionState:
     """Manages global application state cleanly without using Python globals."""
@@ -85,7 +86,7 @@ class SessionState:
 # Singleton instance to be shared across the application run
 state = SessionState()
 
-def ask_user_safe(prompt_text: str, default: str = "", style_dict: dict = None) -> str:
+def ask_user_safe(prompt_text: str, default: str = "", style_dict: dict | None = None) -> str:
     """
     A bulletproof interactive prompt that automatically detects the terminal capabilities.
     Falls back to standard python input() if prompt_toolkit or CPR is unavailable.

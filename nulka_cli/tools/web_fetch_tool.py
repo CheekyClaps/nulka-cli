@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from langchain.tools import BaseTool
 
+
 class WebFetchTool(BaseTool):
     name: str = "web_fetch"
     description: str = (

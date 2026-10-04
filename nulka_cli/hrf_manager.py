@@ -1,5 +1,5 @@
-import os
 import json
+import os
 
 HRF_CONFIG_PATH = os.path.expanduser("~/.oac_hrf.json")
 DEFAULT_BASELINE = 7.0

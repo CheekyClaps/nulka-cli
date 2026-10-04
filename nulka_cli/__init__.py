@@ -1,10 +1,11 @@
 import json
+
 import regex
-from rich.console import Console
-from rich.panel import Panel
+from crewai.agents.tools_handler import ToolsHandler
 from crewai.tools.tool_output_parser import ToolOutputParser
 from crewai.utilities.printer import Printer
-from crewai.agents.tools_handler import ToolsHandler
+from rich.console import Console
+from rich.panel import Panel
 
 console = Console()
 

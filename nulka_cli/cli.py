@@ -7,14 +7,14 @@ if not hasattr(ast, 'NameConstant'):
     # In modern AST, NameConstant(value) is just Constant(value)
     ast.NameConstant = ast.Constant
 
-import os
-import sys
-import glob
-import subprocess
-from datetime import datetime
-from dotenv import load_dotenv
-import warnings
 import logging
+import os
+import subprocess
+import sys
+import warnings
+from datetime import datetime
+
+from dotenv import load_dotenv
 
 # Suppress Pydantic warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
@@ -27,15 +27,12 @@ CONFIG_PATH = os.path.expanduser("~/.nulka_cli_env")
 # Load environment variables on startup
 load_dotenv(CONFIG_PATH)
 
+from crewai import Crew, Process, Task
+from prompt_toolkit import PromptSession
 from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
-from rich.live import Live
-from rich.spinner import Spinner
 from rich.table import Table
-from prompt_toolkit import PromptSession
-from prompt_toolkit.history import InMemoryHistory
-from crewai import Crew, Task, Process
+from rich.text import Text
 
 # Patch CrewAI telemetry to prevent HTTP connection errors on execution
 for module_name in ('crewai.telemtry.telemetry', 'crewai.telemetry.telemetry'):
@@ -48,15 +45,14 @@ for module_name in ('crewai.telemtry.telemetry', 'crewai.telemetry.telemetry'):
     except (ImportError, AttributeError):
         pass
 
-from langchain.tools import tool
 from nulka_cli.utils import (
-    instantiate_agents, 
-    get_system_context, 
-    ollama_llm,
-    is_ollama_running,
-    start_ollama_server,
+    get_loaded_models,
     get_local_models,
-    get_loaded_models
+    get_system_context,
+    instantiate_agents,
+    is_ollama_running,
+    ollama_llm,
+    start_ollama_server,
 )
 
 # Initialize Rich Console
@@ -68,9 +64,10 @@ agents = instantiate_agents()
 # Global Debug Mode to control agent thought verbosity
 DEBUG_MODE = False
 
+import re
+
 from nulka_cli.core.state import state
 
-import re
 
 def format_condensed_output(text: str, max_lines: int = 40) -> str:
     """Smartly truncates massive string outputs for the terminal UI and colorizes reasoning blocks."""
@@ -185,12 +182,13 @@ def calculate_hallucination_risk(prompt: str) -> int:
 
 from nulka_cli.hrf_manager import hrf_manager
 
+
 def get_active_model_name() -> str:
     """Helper to fetch the primary loaded model."""
     from nulka_cli.utils import ollama_llm
     return ollama_llm.model
 
-def route_request(prompt: str, predefined_route: str = None) -> str:
+def route_request(prompt: str, predefined_route: str | None = None) -> str:
     """Integrates dynamic HRF evaluation and routes the request."""
 
     # 0. Evaluate Hallucination Risk Factor (HRF)
@@ -216,6 +214,7 @@ def route_request(prompt: str, predefined_route: str = None) -> str:
                     if 0 <= idx < len(available_models):
                         new_model = available_models[idx]
                         import os
+
                         from dotenv import set_key
                         CONFIG_PATH = os.path.expanduser("~/.nulka_cli_env")
                         set_key(CONFIG_PATH, "LOCAL_MODEL", new_model)
@@ -264,7 +263,7 @@ def execute_crew_workflow(route: str, prompt: str):
         
     full_prompt_with_history = f"{history_context}Current Request: '{prompt}'"
     
-    inputs = {
+    {
         "user_prompt": prompt,
         "current_time": context["current_time"],
         "system_os": context["system_os"],
@@ -477,7 +476,7 @@ def execute_crew_workflow(route: str, prompt: str):
     
     # Stabilize HRF baseline for the active model after a successful completion
     active_model = get_active_model_name()
-    new_thresh = hrf_manager.stabilize(active_model)
+    hrf_manager.stabilize(active_model)
     # console.print(f"[dim]HRF stabilized to {new_thresh:.2f}[/dim]") # Hidden debug
 
 def execute_teach_feedback():
@@ -486,7 +485,7 @@ def execute_teach_feedback():
         console.print("[bold red]❌ No previous query found to teach from. Please submit a query first.[/]")
         return
 
-    console.print(f"\n[bold yellow]🎓 [Onboarding Feedback Loop] Activating Teacher...[/bold yellow]")
+    console.print("\n[bold yellow]🎓 [Onboarding Feedback Loop] Activating Teacher...[/bold yellow]")
     console.print(f"Teaching from query: [bold cyan]'{state.last_user_prompt}'[/bold cyan] (Route: [bold magenta]{state.last_route}[/bold magenta])")
 
     # Map the LAST_ROUTE to the correct agent filename/key to update
@@ -501,8 +500,8 @@ def execute_teach_feedback():
     target_agent_key = route_to_agent_map.get(state.last_route, "assistant")
 
     console.print("[bold yellow]🚀 Consulting Oracle...[/]")
-    from nulka_cli.tools.oracle_cli_tool import OracleCLITool
     from nulka_cli.tools.interactive_teacher_tool import InteractiveTeacherTool
+    from nulka_cli.tools.oracle_cli_tool import OracleCLITool
     
     # 1. Fetch Oracle Truth manually
     oracle_tool = OracleCLITool()
@@ -519,14 +518,11 @@ def execute_teach_feedback():
     
     # Check if Oracle failed (e.g., timeout, connection error, cmd not found, etc.)
     oracle_failed = (
-        oracle_answer.startswith("Error:") or 
-        oracle_answer.startswith("An unexpected error occurred") or
-        "returned error code" in oracle_answer or
-        "timed out" in oracle_answer.lower()
+        oracle_answer.startswith(("Error:", "An unexpected error occurred")) or "returned error code" in oracle_answer or "timed out" in oracle_answer.lower()
     )
 
     if oracle_failed:
-        console.print(f"\n[bold red]⚠️  The External Oracle query failed or timed out: [/bold red]")
+        console.print("\n[bold red]⚠️  The External Oracle query failed or timed out: [/bold red]")
         console.print(f"[yellow]{oracle_answer}[/yellow]\n")
         console.print("[bold yellow]Because the Oracle is unavailable, we cannot auto-formulate a lesson from it.[/bold yellow]")
         console.print("However, you can still formulate your own manual 'Lesson Learned' rule below. Ensure it is abstract and NOT specific to this project, or leave it blank to cancel.")
@@ -633,6 +629,7 @@ def load_ollama_model(model_name: str):
         
         # Update the .env config so the choice persists
         import os
+
         from dotenv import set_key
         CONFIG_PATH = os.path.expanduser("~/.nulka_cli_env")
         set_key(CONFIG_PATH, "LOCAL_MODEL", model_name)
@@ -677,9 +674,9 @@ def remove_ollama_model(model_name: str):
 
 def run_onboarding_wizard():
     """Starts a beautiful Python-native onboarding setup wizard if no config is found."""
-    from prompt_toolkit import prompt
-    from prompt_toolkit.styles import Style
     import shutil
+
+    from prompt_toolkit.styles import Style
     
     console.print("\n")
     banner = (
@@ -701,7 +698,7 @@ def run_onboarding_wizard():
             console.print(f"  [bold green]➔ Found:[/] {cli} at [dim]{shutil.which(cli)}[/dim]")
             
     # Interactive selection using prompt_toolkit
-    style = Style.from_dict({
+    Style.from_dict({
         'prompt': 'ansicyan bold',
     })
     
@@ -793,14 +790,15 @@ def run_interactive_cli():
     
     console.print(Panel(welcome_text, title="[bold green]NulkaCLI Session[/]", border_style="green"))
     
-    from prompt_toolkit.history import FileHistory
-    from prompt_toolkit.styles import Style
-    from prompt_toolkit.key_binding import KeyBindings
     import os
+
+    from prompt_toolkit.history import FileHistory
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.styles import Style
     history_file = os.path.join(os.path.expanduser("~"), ".nulka_cli_history")
     
-    from nulka_cli.ui.statusbar import StatusBar
     from nulka_cli.ui.slash_commands import handle_slash_command
+    from nulka_cli.ui.statusbar import StatusBar
 
     # Define custom KeyBindings for multiline Shift+Enter insertion
     kb = KeyBindings()

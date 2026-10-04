@@ -13,7 +13,7 @@ class AskUserTool(BaseTool):
     )
 
     def _run(self, question: str) -> str:
-        console.print(f"\n[bold yellow]🤖 Agent Needs Input:[/bold yellow]")
+        console.print("\n[bold yellow]🤖 Agent Needs Input:[/bold yellow]")
         console.print(f"[white]{question}[/white]")
         
         try:

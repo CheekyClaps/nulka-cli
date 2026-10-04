@@ -1,12 +1,10 @@
 import os
-from typing import Type
-from pydantic import BaseModel, Field
+
 from langchain.tools import BaseTool
+from prompt_toolkit.formatted_text import HTML
+from pydantic import BaseModel, Field
 from rich.console import Console
 from rich.panel import Panel
-from prompt_toolkit import prompt
-from prompt_toolkit.styles import Style
-from prompt_toolkit.formatted_text import HTML
 
 console = Console()
 
@@ -23,7 +21,7 @@ class InteractiveTeacherTool(BaseTool):
         "Updates an agent's backstory markdown file with new instructions, lessons, or rules learned. "
         "This tool prompts the user interactively in the CLI to approve, reject, or edit the proposed changes before they are saved."
     )
-    args_schema: Type[BaseModel] = TeacherToolInput
+    args_schema: type[BaseModel] = TeacherToolInput
 
     def _run(self, agent_name: str, proposed_rules: str) -> str:
         """Executes the tool to interactively update agent backstory."""

@@ -1,12 +1,12 @@
-import sys
 import os
+import sys
 import unittest
-import json
 
 # Add workspace root to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from nulka_cli.hrf_manager import HRFManager, HRF_CONFIG_PATH
+from nulka_cli.hrf_manager import HRF_CONFIG_PATH, HRFManager
+
 
 class TestHRFManager(unittest.TestCase):
     def setUp(self):

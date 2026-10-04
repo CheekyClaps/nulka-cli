@@ -1,5 +1,7 @@
 from langchain.tools import BaseTool
+
 from nulka_cli.tools.oracle_cli_tool import OracleCLITool
+
 
 class ConsultOracleTool(BaseTool):
     name: str = "consult_oracle"
