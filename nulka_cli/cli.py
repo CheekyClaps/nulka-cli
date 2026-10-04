@@ -293,7 +293,7 @@ def execute_crew_workflow(route: str, prompt: str):
         tasks = [
             Task(
                 description=f"Analyze the requirement: {full_prompt_with_history}. Design a high-level roadmap, architecture, or blueprint based on the user's need.",
-                expected_output="A clean, comprehensive Markdown-formatted plan with actionable steps or architectural designs.",
+                expected_output="A clean, comprehensive Markdown-formatted plan with actionable steps. If instructed to create a file, YOU MUST use the write_file tool.",
                 agent=agents["strategist"]
             )
         ]
@@ -303,8 +303,8 @@ def execute_crew_workflow(route: str, prompt: str):
     elif route == "CREATOR":
         tasks = [
             Task(
-                description=f"Implement the requirement: {full_prompt_with_history}. Read relevant context files and write code, draft documents, or generate configuration.",
-                expected_output="Directly modified workspace files or a complete drafted output.",
+                description=f"Implement the requirement: {full_prompt_with_history}. Read relevant context files and then strictly use your tools to modify or create the requested files.",
+                expected_output="Directly modified workspace files. YOU MUST USE YOUR TOOLS (write_file or smart_edit). DO NOT output code blocks directly.",
                 agent=agents["creator"]
             )
         ]

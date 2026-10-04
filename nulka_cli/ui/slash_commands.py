@@ -374,8 +374,8 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
         console.print(f"[bold cyan]📝 Engaging Safe Mode Planning for:[/] {goal}")
         console.print("[dim]The Architect will draft a plan.md file without executing any code modifications.[/dim]")
         
-        plan_prompt = f"Goal: {goal}\n\nCRITICAL INSTRUCTION: You are in SAFE MODE. You must only research the codebase and output a detailed step-by-step checklist to 'plan.md'. Do NOT execute or modify any other files. Do not write actual code yet."
-        cli_module.execute_crew_workflow("architect", plan_prompt)
+        plan_prompt = f"Goal: {goal}\n\nCRITICAL INSTRUCTION: You are in SAFE MODE. You must only research the codebase and strictly use your write_file tool to output a detailed step-by-step checklist to 'plan.md'. Do NOT execute or modify any other files. Do not write actual code yet."
+        cli_module.execute_crew_workflow("STRATEGIST", plan_prompt)
         return True
 
     elif cmd == "/memory":
