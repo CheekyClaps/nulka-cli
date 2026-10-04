@@ -5,9 +5,9 @@ import shutil
 from pathlib import Path
 
 from langchain.tools import BaseTool
+from rich.console import Console
 
 from nulka_cli.core.state import ask_user_safe
-from rich.console import Console
 
 console = Console()
 

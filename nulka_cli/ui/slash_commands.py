@@ -336,9 +336,8 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
         else:
             console.print("[bold yellow]⚠️ No history to rewind.[/bold yellow]")
             
-        import glob
-        import time
         import re
+        import time
         
         current_time = time.time()
         recent_baks = []
