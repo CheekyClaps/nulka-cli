@@ -63,12 +63,18 @@ NulkaCLI includes a rich set of built-in slash commands to manage your workspace
 #### Core System
 * **`/about`** — Show NulkaCLI version and diagnostic info
 * **`/clear`** — Clear the screen and reset session context
+* **`/rewind`** — Undo the last conversational turn and easily restore modified `.bak` files
 * **`/vim`** — Toggle Vim-mode keybindings for the prompt
 * **`/quit`** — Exit session (use `--delete` to purge history)
+
+#### Workflow & Planning
+* **`/plan <goal>`** — Safe Mode: Instructs the Architect agent to safely draft a `plan.md` file without modifying any external code
+* **`/mcp [cmd]`** — Manage Model Context Protocol servers locally (`add`, `list`, `remove`)
 
 #### Tools, Output, & Agents
 * **`/expand`** — View the last truncated output in a full-screen pager
 * **`/compress`** — Compress session history to a single dense memory block
+* **`/memory`** — View the current compressed session memory and all global taught rules
 * **`/copy`** — Copy the last raw output to your clipboard
 * **`/tools`** — List available capabilities
 * **`/agents`** — List available specialized AI departments

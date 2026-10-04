@@ -328,8 +328,119 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
             console.print(f"[bold red]❌ Failed to compress history: {e}[/bold red]")
         return True
 
+    elif cmd == "/rewind":
+        if state.history:
+            state.history.pop()
+            state.save_session()
+            console.print("[bold green]⏪ Rewound the last conversational turn from memory.[/bold green]")
+        else:
+            console.print("[bold yellow]⚠️ No history to rewind.[/bold yellow]")
+            
+        import glob
+        import time
+        import re
+        
+        current_time = time.time()
+        recent_baks = []
+        for root, _, files in os.walk(os.getcwd()):
+            for file in files:
+                if file.endswith(".bak"):
+                    full_path = os.path.join(root, file)
+                    if current_time - os.path.getmtime(full_path) < 3600:
+                        recent_baks.append(full_path)
+                        
+        if recent_baks:
+            console.print("\n[bold cyan]Found recently modified files that can be restored:[/bold cyan]")
+            for b in recent_baks:
+                console.print(f"  📄 [dim]{b}[/dim]")
+            
+            from nulka_cli.core.state import ask_user_safe
+            if ask_user_safe("Restore these files to their original state and delete backups? [y/N] ❯ ").strip().lower() == 'y':
+                import shutil
+                for b in recent_baks:
+                    orig_path = re.sub(r'\.\d{8}_\d{6}\.bak$', '', b)
+                    if orig_path != b:
+                        shutil.copy2(b, orig_path)
+                        os.remove(b)
+                        console.print(f"[bold green]✅ Restored:[/] {orig_path}")
+        return True
+
+    elif cmd == "/plan":
+        if len(parts) < 2:
+            console.print("[bold red]❌ Usage: /plan <your goal>[/bold red]")
+            return True
+            
+        goal = " ".join(parts[1:])
+        console.print(f"[bold cyan]📝 Engaging Safe Mode Planning for:[/] {goal}")
+        console.print("[dim]The Architect will draft a plan.md file without executing any code modifications.[/dim]")
+        
+        plan_prompt = f"Goal: {goal}\n\nCRITICAL INSTRUCTION: You are in SAFE MODE. You must only research the codebase and output a detailed step-by-step checklist to 'plan.md'. Do NOT execute or modify any other files. Do not write actual code yet."
+        cli_module.execute_crew_workflow("architect", plan_prompt)
+        return True
+
+    elif cmd == "/memory":
+        console.print("\n[bold cyan]🧠 Current Session Memory:[/bold cyan]")
+        if not state.history:
+            console.print("[dim]Session history is currently empty.[/dim]")
+        else:
+            for i, h in enumerate(state.history):
+                preview = h.get('output', '')[:100].replace('\n', ' ')
+                console.print(f"[bold yellow]{i+1}.[/] [dim]User:[/] {h.get('prompt')}")
+                console.print(f"   [dim]Agent ([/][magenta]{h.get('route')}[/][dim]): {preview}...[/dim]\n")
+        
+        rules_path = os.path.expanduser("~/.nulka_cli_rules.md")
+        if os.path.exists(rules_path):
+            console.print(f"\n[bold cyan]🌍 Global Taught Rules ({rules_path}):[/bold cyan]")
+            with open(rules_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                if content.strip():
+                    from rich.markdown import Markdown
+                    console.print(Markdown(content))
+                else:
+                    console.print("[dim]No global rules have been taught yet (use /teach).[/dim]")
+        return True
+
+    elif cmd == "/mcp":
+        mcp_config = os.path.expanduser("~/.nulka_cli_mcp.json")
+        import json
+        
+        if not os.path.exists(mcp_config):
+            with open(mcp_config, 'w', encoding="utf-8") as f:
+                json.dump({"servers": {}}, f)
+                
+        with open(mcp_config, 'r', encoding="utf-8") as f:
+            data = json.load(f)
+            
+        if len(parts) == 1 or parts[1] == "list":
+            console.print("\n[bold cyan]🔌 Configured MCP Servers:[/bold cyan]")
+            servers = data.get("servers", {})
+            if not servers:
+                console.print("[dim]No MCP servers configured. Add one with '/mcp add <name> <cmd>'[/dim]")
+            else:
+                for name, cmd_str in servers.items():
+                    console.print(f"  [bold yellow]{name}[/]: [dim]{cmd_str}[/dim]")
+        elif parts[1] == "add" and len(parts) >= 4:
+            name = parts[2]
+            cmd_str = " ".join(parts[3:])
+            data.setdefault("servers", {})[name] = cmd_str
+            with open(mcp_config, 'w', encoding="utf-8") as f:
+                json.dump(data, f, indent=4)
+            console.print(f"[bold green]✅ Added MCP server '{name}'[/bold green]")
+        elif parts[1] == "remove" and len(parts) >= 3:
+            name = parts[2]
+            if name in data.get("servers", {}):
+                del data["servers"][name]
+                with open(mcp_config, 'w', encoding="utf-8") as f:
+                    json.dump(data, f, indent=4)
+                console.print(f"[bold green]🗑️ Removed MCP server '{name}'[/bold green]")
+            else:
+                console.print(f"[bold red]❌ MCP server '{name}' not found.[/bold red]")
+        else:
+            console.print("[bold red]❌ Usage: /mcp [list | add <name> <cmd> | remove <name>][/bold red]")
+        return True
+
     # 8. Unimplemented/Mocked External Extensions
-    elif cmd in ["/mcp", "/extensions", "/skills", "/plan", "/policies", "/hooks", "/shells", "/bashes", "/setup-github", "/resume", "/chat", "/rewind", "/restore", "/settings", "/theme", "/terminal-setup", "/permissions", "/memory", "/stats", "/bug", "/upgrade", "/privacy"]:
+    elif cmd in ["/extensions", "/skills", "/policies", "/hooks", "/shells", "/bashes", "/setup-github", "/resume", "/chat", "/restore", "/settings", "/theme", "/terminal-setup", "/permissions", "/stats", "/bug", "/upgrade", "/privacy"]:
         console.print(f"[yellow]⚠️  Command '{cmd}' is a recognized Gemini command, but is currently stubbed/unsupported in NulkaCLI.[/yellow]")
         console.print("[dim]NulkaCLI focuses on autonomous CrewAI agentic behaviors over direct manual REPL scaffolding.[/dim]")
         return True
@@ -351,11 +462,16 @@ def print_help(console):
         "[bold yellow]Core System[/bold yellow]\n"
         "  [bold cyan]/about[/]              Show NulkaCLI version and diagnostic info\n"
         "  [bold cyan]/clear[/]              Clear the screen and reset session context\n"
+        "  [bold cyan]/rewind[/]             Undo the last turn and restore modified files\n"
         "  [bold cyan]/vim[/]                Toggle Vim-mode keybindings for the prompt\n"
         "  [bold cyan]/quit[/]               Exit session (use --delete to purge history)\n\n"
+        "[bold yellow]Workflow & Planning[/bold yellow]\n"
+        "  [bold cyan]/plan <goal>[/]        Safe Mode: Architect writes plan.md without executing\n"
+        "  [bold cyan]/mcp [cmd][/]           Manage Model Context Protocol servers (add, list, remove)\n\n"
         "[bold yellow]Tools, Output, & Agents[/bold yellow]\n"
         "  [bold cyan]/expand[/]             View the last truncated output in a full-screen pager\n"
         "  [bold cyan]/compress[/]           Compress session history to a single dense memory block\n"
+        "  [bold cyan]/memory[/]             View the current compressed session memory and rules\n"
         "  [bold cyan]/copy[/]               Copy the last raw output to your clipboard\n"
         "  [bold cyan]/tools[/]              List available capabilities\n"
         "  [bold cyan]/agents[/]             List available specialized AI departments\n"
