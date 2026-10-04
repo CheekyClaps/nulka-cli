@@ -288,8 +288,47 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
         console.print(f"[bold green]🕊️ Trust Forgiven. The local model {active_model} has been granted a clean slate.[/bold green]")
         return True
 
+    elif cmd == "/compress":
+        if len(state.history) < 2:
+            console.print("[bold yellow]⚠️ Session history is already small. Nothing to compress.[/bold yellow]")
+            return True
+            
+        console.print("[bold cyan]🔄 Compressing session history using local LLM...[/bold cyan]")
+        try:
+            from nulka_cli.utils import ollama_llm
+            from langchain.prompts import PromptTemplate
+            
+            history_text = ""
+            for h in state.history:
+                history_text += f"User: {h.get('prompt')}\nAgent: {h.get('output', '')[:300]}...\n\n"
+                
+            prompt = PromptTemplate(
+                input_variables=["history"],
+                template=(
+                    "You are an AI assistant memory compressor. Summarize the following conversation history "
+                    "into a single, concise paragraph that captures the current context, goals, and state of the project. "
+                    "This will be used as the new memory for the agent.\n\n"
+                    "{history}"
+                )
+            )
+            
+            chain = prompt | ollama_llm
+            summary = chain.invoke({"history": history_text})
+            
+            state.history = [{
+                "prompt": "Context Summary of previous session.",
+                "route": "system",
+                "output": summary.strip()
+            }]
+            state.save_session()
+            console.print("[bold green]✅ Session history successfully compressed into a dense memory block![/bold green]")
+            console.print(f"[dim]{summary.strip()}[/dim]")
+        except Exception as e:
+            console.print(f"[bold red]❌ Failed to compress history: {e}[/bold red]")
+        return True
+
     # 8. Unimplemented/Mocked External Extensions
-    elif cmd in ["/mcp", "/extensions", "/skills", "/plan", "/policies", "/hooks", "/shells", "/bashes", "/setup-github", "/resume", "/chat", "/rewind", "/restore", "/settings", "/theme", "/terminal-setup", "/permissions", "/compress", "/memory", "/stats", "/bug", "/upgrade", "/privacy"]:
+    elif cmd in ["/mcp", "/extensions", "/skills", "/plan", "/policies", "/hooks", "/shells", "/bashes", "/setup-github", "/resume", "/chat", "/rewind", "/restore", "/settings", "/theme", "/terminal-setup", "/permissions", "/memory", "/stats", "/bug", "/upgrade", "/privacy"]:
         console.print(f"[yellow]⚠️  Command '{cmd}' is a recognized Gemini command, but is currently stubbed/unsupported in NulkaCLI.[/yellow]")
         console.print("[dim]NulkaCLI focuses on autonomous CrewAI agentic behaviors over direct manual REPL scaffolding.[/dim]")
         return True
@@ -315,6 +354,7 @@ def print_help(console):
         "  [bold cyan]/quit[/]               Exit session (use --delete to purge history)\n\n"
         "[bold yellow]Tools, Output, & Agents[/bold yellow]\n"
         "  [bold cyan]/expand[/]             View the last truncated output in a full-screen pager\n"
+        "  [bold cyan]/compress[/]           Compress session history to a single dense memory block\n"
         "  [bold cyan]/copy[/]               Copy the last raw output to your clipboard\n"
         "  [bold cyan]/tools[/]              List available capabilities\n"
         "  [bold cyan]/agents[/]             List available specialized AI departments\n"

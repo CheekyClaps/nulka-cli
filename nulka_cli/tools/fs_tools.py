@@ -94,41 +94,66 @@ class WriteFileTool(BaseTool):
         except Exception as e:
             return f"Error writing file: {e}"
 
-class ReplaceTextTool(BaseTool):
-    name: str = "replace"
-    description: str = "Replaces exact literal text within a file. Automatically creates a timestamped .bak backup."
+class SmartEditTool(BaseTool):
+    name: str = "smart_edit"
+    description: str = "Replaces or modifies text within a file based on an instruction. Preferred for targeted, complex edits to existing files. You provide the instruction, and the tool's internal AI parses and applies it."
 
-    def _run(self, file_path: str, old_string: str, new_string: str) -> str:
+    def _run(self, file_path: str, instruction: str) -> str:
         try:
             # Interactive Security Confirmation
-            print(f"\n\033[93m⚠️  Agent attempting to REPLACE text in: {file_path}\033[0m")
-            
-            # Show preview of replacement
-            lines = new_string.split('\n')
-            preview = '\n'.join(lines[:5])
-            if len(lines) > 5:
-                preview += f"\n... [{len(lines) - 5} more lines omitted]"
-            print(f"\n\033[90m--- Will replace with ---\n{preview}\n-------------------------\033[0m\n")
+            print(f"\n\033[93m⚠️  Agent attempting to SMART-EDIT: {file_path}\033[0m")
+            print(f"\033[90m--- Instruction ---\n{instruction}\n-------------------\033[0m\n")
 
-            confirm = ask_user_safe("Allow this replace operation? [Y/n] ❯ ").strip().lower()
+            confirm = ask_user_safe("Allow this edit operation? [Y/n] ❯ ").strip().lower()
             if confirm and confirm != 'y':
-                return f"Action Aborted: User denied permission to replace text in {file_path}."
+                return f"Action Aborted: User denied permission to edit {file_path}."
+
+            if not os.path.exists(file_path):
+                return f"Error: File {file_path} does not exist."
 
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
+
+            # Import the local LLM dynamically to avoid circular dependencies
+            from nulka_cli.utils import ollama_llm
+            from langchain.prompts import PromptTemplate
             
-            if old_string not in content:
-                return "Error: old_string not found in file (must be an exact match)."
+            prompt = PromptTemplate(
+                input_variables=["instruction", "content"],
+                template=(
+                    "You are a strict code editing machine. You will be given an existing file and an instruction. "
+                    "You must output the ENTIRE modified file content. "
+                    "Do NOT output any conversational text. Do NOT use placeholders like 'rest of code'. "
+                    "Output ONLY the new file content inside a Markdown block (e.g. ```text ... ```).\n\n"
+                    "INSTRUCTION:\n{instruction}\n\n"
+                    "FILE CONTENT:\n{content}"
+                )
+            )
+            
+            print(f"\033[90m[Interpretation Layer: Processing edit with local LLM...]\033[0m")
+            chain = prompt | ollama_llm
+            response = chain.invoke({"instruction": instruction, "content": content})
+            
+            # Extract content from markdown block if present
+            new_content = response
+            block_match = re.search(r'```[a-zA-Z]*\n(.*?)```', response, re.DOTALL)
+            if block_match:
+                new_content = block_match.group(1).strip()
+            else:
+                new_content = new_content.strip()
                 
+            # Basic sanity check
+            if not new_content or len(new_content) < len(content) * 0.2:
+                return "Error: Internal LLM failed to generate a valid replacement (suspected placeholder output). Action aborted."
+
             create_backup(file_path)
-            new_content = content.replace(old_string, new_string, 1)
             
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(new_content)
                 
-            return f"Successfully replaced text in {file_path} (Timestamped backup saved)"
+            return f"Successfully applied smart edit to {file_path} (Timestamped backup saved)"
         except Exception as e:
-            return f"Error replacing text: {e}"
+            return f"Error executing smart edit: {e}"
 
 class ListDirectoryTool(BaseTool):
     name: str = "list_directory"

@@ -11,7 +11,7 @@ from nulka_cli.tools.consult_oracle_tool import ConsultOracleTool
 from nulka_cli.tools.web_search_tool import WebSearchTool
 from nulka_cli.tools.web_fetch_tool import WebFetchTool
 from nulka_cli.tools.fs_tools import (
-    ReadFileTool, WriteFileTool, ReplaceTextTool, 
+    ReadFileTool, WriteFileTool, SmartEditTool, 
     ListDirectoryTool, GlobSearchTool, GrepSearchTool
 )
 from nulka_cli.tools.shell_tool import RunShellCommandTool
@@ -151,7 +151,7 @@ def instantiate_agents(custom_tools=None):
     # Workspace & File System Tools
     read_tool = ReadFileTool()
     write_tool = WriteFileTool()
-    replace_tool = ReplaceTextTool()
+    smart_edit_tool = SmartEditTool()
     list_dir_tool = ListDirectoryTool()
     glob_tool = GlobSearchTool()
     grep_tool = GrepSearchTool()
@@ -176,7 +176,7 @@ def instantiate_agents(custom_tools=None):
 
         if agent_key in ["creator", "auditor", "analyst", "assistant", "strategist"]:
             # 2. Execution & Modification Suite (Active builders and the General Assistant)
-            agent_tools.extend([write_tool, replace_tool, shell_tool, oracle_cli_tool])
+            agent_tools.extend([write_tool, smart_edit_tool, shell_tool, oracle_cli_tool])
             
         if agent_key in ["router", "strategist"]:
             # 3. UI/Management Suite (For leaders to talk to the user)

@@ -14,6 +14,8 @@ NulkaCLI is not just for code—it is a comprehensive, general-purpose terminal 
 * **Powered by CrewAI & LangChain:** Built on robust frameworks, giving agents access to nifty custom tools. It's incredibly easy to build new agents, delegate tasks, and execute complex filesystem operations.
 * **Live Agent Teaching (`/teach`):** If a local model hallucinates or fails a task, simply type `/teach`. NulkaCLI will consult the Oracle for the correct answer, extract a universal "Lesson Learned," and permanently update the local agent's rulebook. 
 * **Taming Local Models (HRF & Temperature):** Local models are prone to hallucination. NulkaCLI solves this using the **Hallucination Risk Factor (HRF)**. It dynamically scores your prompt's risk, automatically scales the model's temperature (e.g., dropping to 0.0 for strict tasks), and even injects a **Fact-Checker Agent** to cross-examine drafted answers before you see them.
+* **Smart Edit Interpretation Layer:** Uses a dedicated LLM interpretation layer to confidently rewrite code without omitting chunks or producing 'lazy' placeholders.
+* **Token Condensation (`/compress` & `/expand`):** NulkaCLI aggressively intercepts verbose terminal output so it doesn't crash your UI (`/expand`), and provides a local LLM summarizer (`/compress`) to densely pack your session memory, radically reducing token-burn.
 
 ---
 
@@ -66,6 +68,7 @@ NulkaCLI includes a rich set of built-in slash commands to manage your workspace
 
 #### Tools, Output, & Agents
 * **`/expand`** — View the last truncated output in a full-screen pager
+* **`/compress`** — Compress session history to a single dense memory block
 * **`/copy`** — Copy the last raw output to your clipboard
 * **`/tools`** — List available capabilities
 * **`/agents`** — List available specialized AI departments

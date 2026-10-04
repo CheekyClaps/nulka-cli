@@ -6,7 +6,7 @@ from .web_fetch_tool import WebFetchTool
 from .fs_tools import (
     ReadFileTool, 
     WriteFileTool, 
-    ReplaceTextTool, 
+    SmartEditTool, 
     ListDirectoryTool, 
     GlobSearchTool, 
     GrepSearchTool
