@@ -7,6 +7,15 @@ from pathlib import Path
 from langchain.tools import BaseTool
 
 from nulka_cli.core.state import ask_user_safe
+from rich.console import Console
+
+console = Console()
+
+def show_in_pager(content: str, title: str):
+    """Displays massive content blocks safely using Rich's built in pager."""
+    with console.pager():
+        console.print(f"[bold cyan]--- {title} ---[/]\n")
+        console.print(content)
 
 
 class ReadFileTool(BaseTool):
@@ -46,16 +55,21 @@ class WriteFileTool(BaseTool):
             # Interactive Security Confirmation
             print(f"\n\033[93m⚠️  Agent attempting to WRITE to: {file_path}\033[0m")
             
-            # Show preview of what will be written
-            lines = content.split('\n')
-            preview = '\n'.join(lines[:10])
-            if len(lines) > 10:
-                preview += f"\n... [{len(lines) - 10} more lines omitted for preview]"
-            print(f"\n\033[90m--- Preview of content ---\n{preview}\n--------------------------\033[0m\n")
-            
-            confirm = ask_user_safe("Allow this write operation? [Y/n] ❯ ").strip().lower()
-            if confirm and confirm != 'y':
-                return f"Action Aborted: User denied permission to write to {file_path}."
+            while True:
+                # Show preview of what will be written
+                lines = content.split('\n')
+                preview = '\n'.join(lines[:10])
+                if len(lines) > 10:
+                    preview += f"\n... [{len(lines) - 10} more lines omitted for preview]"
+                print(f"\n\033[90m--- Preview of content ---\n{preview}\n--------------------------\033[0m\n")
+                
+                confirm = ask_user_safe("Allow this write operation? [Y/n/v(view)] ❯ ").strip().lower()
+                if confirm == 'v':
+                    show_in_pager(content, f"Full Payload for {file_path}")
+                    continue
+                elif confirm and confirm != 'y':
+                    return f"Action Aborted: User denied permission to write to {file_path}."
+                break
 
             if not content.strip():
                 return "Safety Error: Attempted to write an empty file. If you meant to delete the file, use a shell command to remove it. Action aborted."
@@ -107,9 +121,18 @@ class SmartEditTool(BaseTool):
             print(f"\n\033[93m⚠️  Agent attempting to SMART-EDIT: {file_path}\033[0m")
             print(f"\033[90m--- Instruction ---\n{instruction}\n-------------------\033[0m\n")
 
-            confirm = ask_user_safe("Allow this edit operation? [Y/n] ❯ ").strip().lower()
-            if confirm and confirm != 'y':
-                return f"Action Aborted: User denied permission to edit {file_path}."
+            while True:
+                confirm = ask_user_safe("Allow this edit operation? [Y/n/v(view)] ❯ ").strip().lower()
+                if confirm == 'v':
+                    if os.path.exists(file_path):
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            show_in_pager(f.read(), f"Current Payload for {file_path}")
+                    else:
+                        print(f"\033[93mFile {file_path} does not exist yet.\033[0m")
+                    continue
+                elif confirm and confirm != 'y':
+                    return f"Action Aborted: User denied permission to edit {file_path}."
+                break
 
             if not os.path.exists(file_path):
                 return f"Error: File {file_path} does not exist."
