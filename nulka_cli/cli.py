@@ -749,7 +749,7 @@ def run_onboarding_wizard():
     except Exception as e:
         console.print(f"[bold red]❌ Failed to save configuration: {e}[/bold red]\n")
 
-def run_interactive_cli():
+def run_interactive_cli(single_query: str | None = None):
     import os
     global DEBUG_MODE
     # 0. Onboarding Check
@@ -770,33 +770,36 @@ def run_interactive_cli():
             sys.exit(1)
 
     # Welcome banner
-    welcome_text = Text()
-    welcome_text.append("\n🤖 NulkaCLI (Enterprise Multi-Agent Workspace)\n", style="bold green")
-    welcome_text.append("Operating System: ", style="dim")
-    welcome_text.append(f"{platform.system()} {platform.release()}\n", style="bold cyan")
-    welcome_text.append("Local Time: ", style="dim")
-    welcome_text.append(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n", style="bold yellow")
-    welcome_text.append("Active Local Model: ", style="dim")
-    welcome_text.append(f"{get_active_model_name()}\n", style="bold magenta")
-    welcome_text.append("Available Agents: ", style="dim")
-    welcome_text.append("Strategist, Creator, Auditor, Analyst, Router, Teacher, Oracle\n", style="bold magenta")
-    welcome_text.append("Special Tooling: ", style="dim")
-    welcome_text.append("Workspace Automation, Web Search, Dynamic HRF & Fallback Oracle\n", style="bold blue")
-    welcome_text.append("Keybindings: ", style="dim")
-    welcome_text.append("Alt+Enter (Newline) • Ctrl+C (Interrupt generation) • Enter (Submit)\n", style="bold yellow")
-    welcome_text.append("Interactive Help: ", style="dim")
-    welcome_text.append("Type /help to view command list or /risk to preview prompt danger\n", style="bold green")
-    welcome_text.append("Type '/quit', 'exit', or 'quit' to terminate.\n", style="italic")
-    
-    console.print(Panel(welcome_text, title="[bold green]NulkaCLI Session[/]", border_style="green"))
-    
+    if not single_query:
+        welcome_text = Text()
+        welcome_text.append("\n🤖 NulkaCLI (Enterprise Multi-Agent Workspace)\n", style="bold green")
+        welcome_text.append("Operating System: ", style="dim")
+        welcome_text.append(f"{platform.system()} {platform.release()}\n", style="bold cyan")
+        welcome_text.append("Local Time: ", style="dim")
+        welcome_text.append(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n", style="bold yellow")
+        welcome_text.append("Active Local Model: ", style="dim")
+        welcome_text.append(f"{get_active_model_name()}\n", style="bold magenta")
+        welcome_text.append("Available Agents: ", style="dim")
+        welcome_text.append("Strategist, Creator, Auditor, Analyst, Router, Teacher, Oracle\n", style="bold magenta")
+        welcome_text.append("Special Tooling: ", style="dim")
+        welcome_text.append("Workspace Automation, Web Search, Dynamic HRF & Fallback Oracle\n", style="bold blue")
+        welcome_text.append("Keybindings: ", style="dim")
+        welcome_text.append("Alt+Enter (Newline) • Ctrl+C (Interrupt generation) • Enter (Submit)\n", style="bold yellow")
+        welcome_text.append("Interactive Help: ", style="dim")
+        welcome_text.append("Type /help to view command list or /risk to preview prompt danger\n", style="bold green")
+        welcome_text.append("Type '/quit', 'exit', or 'quit' to terminate.\n", style="italic")
+        
+        console.print(Panel(welcome_text, title="[bold green]NulkaCLI Session[/]", border_style="green"))
+    else:
+        console.print(Panel(f"Executing Single Query Mode\nModel: {get_active_model_name()}\nQuery: {single_query}", title="[bold green]NulkaCLI One-Shot[/]", border_style="green"))
+
     import os
 
     from prompt_toolkit.history import FileHistory
     from prompt_toolkit.key_binding import KeyBindings
     from prompt_toolkit.styles import Style
     history_file = os.path.join(os.path.expanduser("~"), ".nulka_cli_history")
-    
+
     from nulka_cli.ui.slash_commands import handle_slash_command
     from nulka_cli.ui.statusbar import StatusBar
 
@@ -819,10 +822,67 @@ def run_interactive_cli():
         event.current_buffer.insert_text('\n')
 
     session = PromptSession(history=FileHistory(history_file), key_bindings=kb)
-    
+
     import sys
     this_module = sys.modules[__name__]
-    
+
+    def _process_turn(user_input: str) -> bool:
+        """Processes a single turn of the conversation. Returns True if CLI should exit."""
+        if user_input.lower() in ['/quit', 'exit', 'quit']:
+            console.print("[bold yellow]Goodbye human[/]")
+            return True
+
+        # Handle slash commands using the new dedicated handler
+        if user_input.startswith("/"):
+            parts = user_input.split()
+            cmd = parts[0].lower()
+            handle_slash_command(cmd, parts, console, session, this_module)
+            return False
+
+        # 1. Analyze Intent (Scrutiny + Routing in one pass)
+        with console.status("[bold yellow]🤔 [Lead Coordinator] Analyzing intent & context...[/]"):
+            analysis = analyze_prompt_intent(user_input)
+
+        scrutiny_result = analysis.get("scrutiny", "PROCEED")
+        proposed_route = analysis.get("route", "GENERAL")
+
+        if scrutiny_result != "PROCEED":
+            console.print(f"[bold yellow]🤔 [Coordinator Question]:[/] {scrutiny_result}")
+            try:
+                style = Style.from_dict({'prompt': 'ansicyan bold'})
+                if not single_query:
+                    clarification = session.prompt("Provide clarification ❯ ", style=style).strip()
+                else:
+                    clarification = input("Provide clarification ❯ ").strip()
+                if clarification:
+                    user_input = f"{user_input}\n\nUser Clarification: {clarification}"
+                else:
+                    console.print("[dim]No clarification provided. Proceeding with original prompt...[/dim]")
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[bold red]Cancelled prompt.[/bold red]")
+                return False
+
+        # 2. Finalize Route (Apply HRF Checks)
+        route = route_request(user_input, predefined_route=proposed_route)
+        if route == "SWAP_RESTART":
+            return True
+
+        console.print(f"[bold cyan]🔍 [Coordinator] Dispatching to: {route}[/]")
+
+        # 3. Execute workflow
+        try:
+            execute_crew_workflow(route, user_input)
+        except KeyboardInterrupt:
+            console.print("\n[bold red]🛑 Generation interrupted by user. Returning to prompt...[/]")
+        except Exception as e:
+            console.print(f"[bold red]Execution Error: {e}[/]")
+            
+        return False
+
+    if single_query:
+        _process_turn(single_query.strip())
+        return
+
     while True:
         try:
             # We style the bottom toolbar slightly if metrics are on
@@ -830,10 +890,10 @@ def run_interactive_cli():
             if state.show_metrics:
                 style_dict['bottom-toolbar'] = 'bg:#222222 #ffffff'
             prompt_style = Style.from_dict(style_dict)
-            
+
             user_input = session.prompt(
-                "\n✦ ❯ ", 
-                bottom_toolbar=StatusBar.get_toolbar, 
+                "\n✦ ❯ ",
+                bottom_toolbar=StatusBar.get_toolbar,
                 style=prompt_style,
                 vi_mode=state.vim_mode,
                 multiline=True
@@ -841,57 +901,13 @@ def run_interactive_cli():
         except (KeyboardInterrupt, EOFError):
             console.print("\n[bold yellow]Goodbye human[/]")
             break
-            
+
         user_input = user_input.strip()
         if not user_input:
             continue
-            
-        if user_input.lower() in ['/quit', 'exit', 'quit']:
-            console.print("[bold yellow]Goodbye human[/]")
-            break
-            
-        # Handle slash commands using the new dedicated handler
-        if user_input.startswith("/"):
-            parts = user_input.split()
-            cmd = parts[0].lower()
-            handle_slash_command(cmd, parts, console, session, this_module)
-            continue
 
-        # 1. Analyze Intent (Scrutiny + Routing in one pass)
-        with console.status("[bold yellow]🤔 [Lead Coordinator] Analyzing intent & context...[/]"):
-            analysis = analyze_prompt_intent(user_input)
-            
-        scrutiny_result = analysis.get("scrutiny", "PROCEED")
-        proposed_route = analysis.get("route", "GENERAL")
-            
-        if scrutiny_result != "PROCEED":
-            console.print(f"[bold yellow]🤔 [Coordinator Question]:[/] {scrutiny_result}")
-            try:
-                style = Style.from_dict({'prompt': 'ansicyan bold'})
-                clarification = session.prompt("Provide clarification ❯ ", style=style).strip()
-                if clarification:
-                    user_input = f"{user_input}\n\nUser Clarification: {clarification}"
-                else:
-                    console.print("[dim]No clarification provided. Proceeding with original prompt...[/dim]")
-            except (KeyboardInterrupt, EOFError):
-                console.print("\n[bold red]Cancelled prompt.[/bold red]")
-                continue
-
-        # 2. Finalize Route (Apply HRF Checks)
-        route = route_request(user_input, predefined_route=proposed_route)
-        if route == "SWAP_RESTART":
+        if _process_turn(user_input):
             break
-            
-        console.print(f"[bold cyan]🔍 [Coordinator] Dispatching to: {route}[/]")
-        
-        # 3. Execute workflow
-        try:
-            execute_crew_workflow(route, user_input)
-        except KeyboardInterrupt:
-            console.print("\n[bold red]🛑 Generation interrupted by user. Returning to prompt...[/]")
-            continue
-        except Exception as e:
-            console.print(f"[bold red]Execution Error: {e}[/]")
 
 if __name__ == "__main__":
     run_interactive_cli()

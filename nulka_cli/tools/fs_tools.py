@@ -20,11 +20,15 @@ def print_bypass(text: str):
     except Exception:
         print(text)
 
-def show_in_pager(content: str, title: str):
+def show_in_pager(content: str, title: str, lexer: str = None):
     """Displays massive content blocks safely using Rich's built in pager."""
-    with console.pager():
+    with console.pager(styles=True):
         console.print(f"[bold cyan]--- {title} ---[/]\n")
-        console.print(content)
+        if lexer:
+            from rich.syntax import Syntax
+            console.print(Syntax(content, lexer, theme="monokai", word_wrap=True))
+        else:
+            console.print(content)
 
 
 class ReadFileTool(BaseTool):
@@ -33,6 +37,7 @@ class ReadFileTool(BaseTool):
 
     def _run(self, file_path: str, start_line: int | None = None, end_line: int | None = None) -> str:
         try:
+            file_path = os.path.expanduser(file_path)
             with open(file_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
             
@@ -59,9 +64,12 @@ class WriteFileTool(BaseTool):
     name: str = "write_file"
     description: str = "Writes the COMPLETE, fully functional content to a file, creating missing parent directories. Overwrites existing files. Automatically creates a timestamped .bak backup. Rejects writing empty strings to non-empty files. You MUST NOT use placeholders like 'Your code goes here' or omit code. The 'content' argument MUST contain the entire literal file contents."
 
-    def _run(self, file_path: str, content: str, make_exec: bool = False) -> str:
+    def _run(self, file_path: str, content: str = "", make_exec: bool = False, new_content: str = "") -> str:
+        content = content or new_content
+        if not content:
+            return "Error: You must provide the 'content' argument containing the file data."
         try:
-            # Interactive Security Confirmation
+            file_path = os.path.expanduser(file_path)
             print_bypass(f"\n\033[93m⚠️  Agent attempting to WRITE to: {file_path}\033[0m")
             
             while True:
@@ -70,14 +78,26 @@ class WriteFileTool(BaseTool):
                 preview = '\n'.join(lines[:10])
                 if len(lines) > 10:
                     preview += f"\n... [{len(lines) - 10} more lines omitted for preview]"
-                print_bypass(f"\n\033[90m--- Preview of content ---\n{preview}\n--------------------------\033[0m\n")
-                
+
+                filename = os.path.basename(file_path)
+                ext = os.path.splitext(file_path)[1].lstrip('.')
+                lexer_name = ext if ext else filename
+
+                console.print("\n[bold cyan]--- Preview of content ---[/]")
+                from rich.syntax import Syntax
+                console.print(Syntax(preview, lexer_name, theme="monokai", word_wrap=True))
+                console.print("[bold cyan]--------------------------[/]\n")
+
                 confirm = ask_user_safe("Allow this write operation? [Y/n/v(view)] ❯ ").strip().lower()
                 if confirm == 'v':
-                    show_in_pager(content, f"Full Payload for {file_path}")
+                    show_in_pager(content, f"Full Payload for {file_path}", lexer=lexer_name)
                     continue
                 elif confirm and confirm != 'y':
-                    return f"Action Aborted: User denied permission to write to {file_path}."
+                    feedback = ask_user_safe("Provide feedback to the agent (leave blank to cancel completely) ❯ ").strip()
+                    if feedback:
+                        return f"Action Aborted: User denied permission. User Feedback: {feedback}"
+                    else:
+                        return f"Action Aborted: User denied permission to write to {file_path}. DO NOT RETRY. The user has cancelled this operation."
                 break
 
             if not content.strip():
@@ -122,17 +142,20 @@ class WriteFileTool(BaseTool):
 
 class SmartEditTool(BaseTool):
     name: str = "smart_edit"
-    description: str = "Replaces or modifies text within a file based on an instruction. Preferred for targeted, complex edits to existing files. You provide the instruction, and the tool's internal AI parses and applies it."
+    description: str = "Replaces or modifies text within an existing file. REQUIRED for targeted edits. Arguments: 'file_path' (string) and 'instruction' (string detailing the change). You MUST INVOKE THIS TOOL to apply your changes; do NOT simply explain what you would do. However, if you determine NO changes are needed after reading the file, DO NOT invoke this tool; simply state that the file is already up to date in your final answer."
 
-    def _run(self, file_path: str, instruction: str) -> str:
+    def _run(self, file_path: str, instruction: str = "", new_content: str = "") -> str:
+        instruction = instruction or new_content
+        if not instruction:
+            return "Error: You must provide an 'instruction' argument detailing what to change."
         try:
+            file_path = os.path.expanduser(file_path)
             if not os.path.exists(file_path):
                 return f"Error: File {file_path} does not exist."
 
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
-            # Interactive Security Confirmation
             print_bypass(f"\n\033[93m⚠️  Agent attempting to SMART-EDIT: {file_path}\033[0m")
             print_bypass(f"\033[90m--- Instruction ---\n{instruction}\n-------------------\033[0m\n")
             print_bypass("\033[90m[Interpretation Layer: Processing edit with local LLM...]\033[0m")
@@ -179,22 +202,34 @@ class SmartEditTool(BaseTool):
                 tofile='Modified',
                 lineterm=''
             ))
-            
-            diff_text = '\n'.join(diff) if diff else "(No changes detected)"
-            
-            preview = '\n'.join(diff[:15]) if diff else "(No changes detected)"
+
+            if not diff:
+                console.print("\n[bold yellow]⚠ Smart Edit resulted in no changes to the file. Skipping user confirmation.[/]\n")
+                return "No changes were made. The file content is already identical to the requested changes. Do not retry; please proceed with your final answer."
+
+            diff_text = '\n'.join(diff)
+
+            preview_lines = diff[:15]
             if len(diff) > 15:
-                preview += f"\n... [{len(diff) - 15} more lines omitted for preview]"
-                
-            print_bypass(f"\n\033[90m--- Diff Preview ---\n{preview}\n--------------------\033[0m\n")
+                preview_lines.append(f"... [{len(diff) - 15} more lines omitted for preview]")
+            preview = '\n'.join(preview_lines)
+
+            console.print("\n[bold cyan]--- Diff Preview ---[/]")
+            from rich.syntax import Syntax
+            console.print(Syntax(preview, "diff", theme="monokai", word_wrap=True))
+            console.print("[bold cyan]--------------------[/]\n")
 
             while True:
                 confirm = ask_user_safe("Allow this edit operation? [Y/n/v(view diff)] ❯ ").strip().lower()
                 if confirm == 'v':
-                    show_in_pager(diff_text, f"Full Diff for {file_path}")
+                    show_in_pager(diff_text, f"Full Diff for {file_path}", lexer="diff")
                     continue
                 elif confirm and confirm != 'y':
-                    return f"Action Aborted: User denied permission to edit {file_path}."
+                    feedback = ask_user_safe("Provide feedback to the agent (leave blank to cancel completely) ❯ ").strip()
+                    if feedback:
+                        return f"Action Aborted: User denied permission. User Feedback: {feedback}"
+                    else:
+                        return f"Action Aborted: User denied permission to edit {file_path}. DO NOT RETRY. The user has cancelled this operation."
                 break
 
             create_backup(file_path)

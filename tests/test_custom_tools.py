@@ -1,11 +1,11 @@
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from nulka_cli.tools.fs_tools import (
     GlobSearchTool,
     GrepSearchTool,
     ListDirectoryTool,
     ReadFileTool,
-    ReplaceTextTool,
+    SmartEditTool,
     WriteFileTool,
 )
 from nulka_cli.tools.shell_tool import RunShellCommandTool
@@ -33,12 +33,18 @@ def test_replace_text_tool(mock_ask, tmp_path):
     test_file = tmp_path / "test.txt"
     test_file.write_text("The old string is here.", encoding="utf-8")
     
-    replacer = ReplaceTextTool()
-    res = replacer._run(str(test_file), "old string", "new string")
-    assert "Successfully" in res
+    # Mock the chain invocation
+    mock_chain = MagicMock()
+    mock_chain.invoke.return_value = "The new string is here."
     
-    content = test_file.read_text(encoding="utf-8")
-    assert content == "The new string is here."
+    # The tool creates a prompt | llm pipeline, so we mock the __or__ operator
+    with patch('langchain.prompts.PromptTemplate.__or__', return_value=mock_chain):
+        replacer = SmartEditTool()
+        res = replacer._run(str(test_file), "change old string to new string")
+        assert "Successfully" in res
+        
+        content = test_file.read_text(encoding="utf-8")
+        assert content == "The new string is here."
 
 def test_list_directory_tool(tmp_path):
     """Test listing directory contents."""

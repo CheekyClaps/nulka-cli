@@ -94,17 +94,35 @@ def load_agent_configs(agents_yaml_path="config/agents.yaml"):
         
     context = get_system_context()
     
-    # Load Universal Ground Rules if they exist
+    # Load Universal Ground Rules (Anti-Trap Directives) natively
     ground_rules = ""
-    rules_path = os.path.expanduser("~/.nulka_cli_rules.md")
+    rules_path = os.path.join(base_dir, "config", "universal_directives.md")
+    
+    # Also support user-level global overrides if they exist
+    global_rules_path = os.path.expanduser("~/.nulka_cli_rules.md")
+    
+    combined_rules = []
+    
     if os.path.exists(rules_path):
         try:
             with open(rules_path, "r") as f:
                 content = f.read().strip()
                 if content:
-                    ground_rules = f"\n\n### 🌍 Universal Ground Rules\n{content}"
+                    combined_rules.append(content)
         except Exception:
             pass
+            
+    if os.path.exists(global_rules_path):
+        try:
+            with open(global_rules_path, "r") as f:
+                content = f.read().strip()
+                if content:
+                    combined_rules.append(f"### 👤 User Global Overrides\n{content}")
+        except Exception:
+            pass
+            
+    if combined_rules:
+        ground_rules = "\n\n" + "\n\n".join(combined_rules)
     
     for agent_config in agents_data.values():
         backstory_file = agent_config.get("backstory_file")
