@@ -117,7 +117,7 @@ def analyze_prompt_intent(prompt: str) -> dict:
         "TASK 2 - ROUTING:\n"
         "Assign the request to EXACTLY ONE of these versatile archetypes based on the intent:\n"
         "- STRATEGIST: Planning, structural design, architecture, defining roadmaps, or breaking down tasks.\n"
-        "- CREATOR: Writing code, generating documents, writing essays, creating configuration files, building features, OR explicitly executing/continuing an agreed-upon plan (e.g., 'continue with the plan', 'proceed', 'do it').\n"
+        "- CREATOR: Modifying existing files, changing specific lines of code, writing code, generating documents, writing essays, creating configuration files, building features, OR explicitly executing/continuing an agreed-upon plan (e.g., 'continue with the plan', 'proceed', 'do it').\n"
         "- AUDITOR: Reviewing work, QA testing, searching for secrets/vulnerabilities, verifying compliance, or factual fact-checking.\n"
         "- ANALYST: Researching topics, parsing data/logs, running system operations/shell diagnostics, or extracting intelligence.\n"
         "- GENERAL: General conversational chats or vague instructions.\n\n"
