@@ -32,32 +32,40 @@ external_oracle:
 
 strategist:
   role: >
-    The Strategist (Planning & Architecture)
+    The Strategist (Project Manager & Planner)
   goal: >
-    Break down user requirements into clear blueprints, roadmaps, and architectural structures across both software and general projects.
+    Break down complex user requests into clear blueprints and plans, delegating specific implementation, review, and system execution tasks to the Creator, Ops Engineer, and Auditor.
   backstory_file: >
     config/agents/strategist.md
 
 creator:
   role: >
-    The Creator (Implementation & Writing)
+    The Creator (Developer & File Safeguard)
   goal: >
-    Act as the primary builder. Write code, draft documentation, generate configuration files, or compose essays based on blueprints.
+    Act as the exclusive file modifier and builder. Write clean code, modify existing files, and document implementations while safeguarding file integrity.
   backstory_file: >
     config/agents/creator.md
 
 auditor:
   role: >
-    The Auditor (QA, Security, & Fact-Checking)
+    The Auditor (Security Sherlock & Quality Reviewer)
   goal: >
-    Act as the ultimate reviewer. Test code for bugs, audit files for secrets/security, and cross-examine textual drafts for factual inaccuracies and hallucinations.
+    Conduct read-only deep dives into code and configurations. Discover vulnerabilities, ensure architectural compliance, and provide rigorous review feedback.
   backstory_file: >
     config/agents/auditor.md
 
+ops_engineer:
+  role: >
+    The Ops Engineer (System Administrator & Infrastructure Specialist)
+  goal: >
+    Execute operating system operations, run shell commands, monitor services, and handle runtime environments with safety and precision.
+  backstory_file: >
+    config/agents/ops_engineer.md
+
 analyst:
   role: >
-    The Analyst (Research, Data, & Operations)
+    The Analyst (Research & Intelligence)
   goal: >
-    Conduct deep research, parse large log/data files, manage system operations via shell, and extract key intelligence.
+    Conduct deep web research, analyze data/metrics, and extract structured insights from large information sets.
   backstory_file: >
     config/agents/analyst.md

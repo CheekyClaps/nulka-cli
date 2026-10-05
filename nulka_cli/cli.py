@@ -116,10 +116,11 @@ def analyze_prompt_intent(prompt: str) -> dict:
         "IMPORTANT: If the user says something conversational like 'let go again', 'lets pick up where we left off', or 'continue', you MUST output 'PROCEED' because the General Assistant knows how to handle these automatically based on its learned rules.\n\n"
         "TASK 2 - ROUTING:\n"
         "Assign the request to EXACTLY ONE of these versatile archetypes based on the intent:\n"
-        "- STRATEGIST: Planning, structural design, architecture, defining roadmaps, or breaking down tasks.\n"
+        "- STRATEGIST: Planning, structural design, architecture, defining roadmaps, breaking down complex tasks, OR evaluating/diagnosing open-ended system performance & optimization inquiries (e.g., 'is my server/LLM optimized?', 'how can I improve performance?', 'evaluate my setup').\n"
         "- CREATOR: Modifying existing files, changing specific lines of code, writing code, generating documents, writing essays, creating configuration files, building features, OR explicitly executing/continuing an agreed-upon plan (e.g., 'continue with the plan', 'proceed', 'do it').\n"
         "- AUDITOR: Reviewing work, QA testing, searching for secrets/vulnerabilities, verifying compliance, or factual fact-checking.\n"
-        "- ANALYST: Researching topics, parsing data/logs, running system operations/shell diagnostics, or extracting intelligence.\n"
+        "- OPS: Executing concrete, direct operating system operations and shell commands (e.g., starting/stopping a service, running build/test scripts, checking a specific process or port, installing packages). NOT for broad evaluation or open-ended inquiries like 'is my system optimized?'.\n"
+        "- ANALYST: Researching topics online, parsing structured data, summarizing large information sets, or extracting intelligence.\n"
         "- GENERAL: General conversational chats or vague instructions.\n\n"
         "OUTPUT FORMAT (You must output exactly these two lines):\n"
         "SCRUTINY: [Your question or PROCEED]\n"
@@ -143,7 +144,7 @@ def analyze_prompt_intent(prompt: str) -> dict:
                 result["scrutiny"] = val if val else "PROCEED"
             elif line.upper().startswith("ROUTE:"):
                 val = line[len("ROUTE:"):].strip().upper()
-                for cat in ["STRATEGIST", "CREATOR", "AUDITOR", "ANALYST", "GENERAL", "ORACLE"]:
+                for cat in ["STRATEGIST", "CREATOR", "AUDITOR", "ANALYST", "OPS", "GENERAL", "ORACLE"]:
                     if cat in val:
                         result["route"] = cat
                         break
@@ -292,13 +293,30 @@ def execute_crew_workflow(route: str, prompt: str):
     elif route == "STRATEGIST":
         tasks = [
             Task(
-                description=f"Analyze the requirement: {full_prompt_with_history}. Design a high-level roadmap, architecture, or blueprint based on the user's need.",
-                expected_output="A clean, comprehensive Markdown-formatted plan with actionable steps. If instructed to create a file, YOU MUST use the write_file tool.",
+                description=(
+                    f"Lead, plan, and orchestrate the solution for: {full_prompt_with_history}.\n"
+                    "Follow the Iterative Investigation & Clarification Protocol:\n"
+                    "1. RESEARCH: Conduct initial exploration using web search or reading relevant files to understand what this inquiry requires (industry benchmarks, optimization pillars, system dependencies).\n"
+                    "2. CLARIFY: If critical variables, target hardware, or user preferences are missing or ambiguous, use the 'ask_user' tool to prompt and confirm details with the user.\n"
+                    "3. DELEGATE: Delegate specific execution sub-tasks to your co-workers based on the research findings:\n"
+                    "   - Delegate terminal commands, hardware telemetry, and service diagnostics to The Ops Engineer.\n"
+                    "   - Delegate deep web research, data parsing, or log extraction to The Analyst.\n"
+                    "   - Delegate file creation, modifications, or documentation to The Creator.\n"
+                    "   - Delegate security audits, secret scanning, or QA to The Auditor.\n"
+                    "4. DELIVER: Synthesize all research, user clarifications, and worker findings into a definitive, evidenced response."
+                ),
+                expected_output="A comprehensive, evidenced strategy, evaluation report, or completed plan.",
                 agent=agents["strategist"]
             )
         ]
-        crew_agents = [agents["strategist"]]
-        status_msg = "The Strategist is drawing up blueprints..."
+        crew_agents = [
+            agents["strategist"],
+            agents["ops_engineer"],
+            agents["creator"],
+            agents["auditor"],
+            agents["analyst"]
+        ]
+        status_msg = "The Strategist is planning and orchestrating the investigation..."
 
     elif route == "CREATOR":
         tasks = [
@@ -332,6 +350,17 @@ def execute_crew_workflow(route: str, prompt: str):
         ]
         crew_agents = [agents["analyst"]]
         status_msg = "The Analyst is running deep diagnostics and research..."
+
+    elif route == "OPS":
+        tasks = [
+            Task(
+                description=f"Execute the operating system, terminal, or infrastructure requirement: {full_prompt_with_history}. Safely run the necessary shell commands, verify outputs, and provide a clear status report.",
+                expected_output="A clear summary of executed commands and system results.",
+                agent=agents["ops_engineer"]
+            )
+        ]
+        crew_agents = [agents["ops_engineer"]]
+        status_msg = "The Ops Engineer is executing system tasks..."
 
     else: # GENERAL
         # General Assistant route
@@ -447,6 +476,8 @@ def execute_crew_workflow(route: str, prompt: str):
         steps.extend(["The Auditor"])
     elif route == "ANALYST":
         steps.extend(["The Analyst"])
+    elif route == "OPS":
+        steps.extend(["The Ops Engineer"])
 
     if 4 <= hrf_score <= 7 and route != "ORACLE":
         steps.append("Fact-Checker (Peer Review)")
@@ -494,6 +525,7 @@ def execute_teach_feedback():
         "CREATOR": "creator",
         "AUDITOR": "auditor",
         "ANALYST": "analyst",
+        "OPS": "ops_engineer",
         "GENERAL": "assistant",
         "ORACLE": "assistant"
     }
@@ -505,10 +537,16 @@ def execute_teach_feedback():
     
     # 1. Fetch Oracle Truth manually
     oracle_tool = OracleCLITool()
+    
+    # Sanitize user prompt to avoid single-quote JSON escaping bugs in some external CLI classifiers
+    safe_user_prompt = state.last_user_prompt.replace("'", '"')
+    
     oracle_prompt = (
         f"A local AI agent failed to properly process the following user request:\n"
-        f"'{state.last_user_prompt}'\n\n"
-        f"Please provide the correct solution. More importantly, format your response as an omnipotent, "
+        f"\"{safe_user_prompt}\"\n\n"
+        f"Please provide the correct solution based strictly on your internal knowledge. "
+        f"DO NOT use any external tools or attempt to investigate the local filesystem. "
+        f"More importantly, format your response as an omnipotent, "
         f"universal 'Lesson Learned' that is NOT specific to this current project or its files. "
         f"Abstract away project details and provide a generalized rule that the agent should follow for all future requests of this nature."
     )
@@ -780,7 +818,7 @@ def run_interactive_cli(single_query: str | None = None):
         welcome_text.append("Active Local Model: ", style="dim")
         welcome_text.append(f"{get_active_model_name()}\n", style="bold magenta")
         welcome_text.append("Available Agents: ", style="dim")
-        welcome_text.append("Strategist, Creator, Auditor, Analyst, Router, Teacher, Oracle\n", style="bold magenta")
+        welcome_text.append("Strategist, Creator, Auditor, Ops Engineer, Analyst, Router, Teacher, Oracle\n", style="bold magenta")
         welcome_text.append("Special Tooling: ", style="dim")
         welcome_text.append("Workspace Automation, Web Search, Dynamic HRF & Fallback Oracle\n", style="bold blue")
         welcome_text.append("Keybindings: ", style="dim")

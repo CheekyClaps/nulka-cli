@@ -33,7 +33,8 @@ Printer.print = _patched_print
 original_on_tool_use = ToolsHandler.on_tool_use
 
 def _patched_on_tool_use(self, calling, output: str):
-    console.print(f"\n⚙️  [bold magenta]Agent Executing Tool:[/bold magenta] [white]{calling.tool_name}[/white]")
+    tool_name = getattr(calling, "tool_name", "Unknown Tool") if hasattr(calling, "tool_name") else (calling.get("tool_name", "Unknown Tool") if isinstance(calling, dict) else "Unknown Tool")
+    console.print(f"\n⚙️  [bold magenta]Agent Executing Tool:[/bold magenta] [white]{tool_name}[/white]")
     return original_on_tool_use(self, calling, output)
 
 ToolsHandler.on_tool_use = _patched_on_tool_use

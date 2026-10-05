@@ -18,6 +18,9 @@ class OracleCLITool(BaseTool):
         Args:
             prompt: The text prompt/query to send to the Oracle CLI tool.
         """
+        # Sanitize prompt to prevent JSON escaping bugs in underlying CLI agents
+        safe_prompt = prompt.replace("'", '"')
+        
         # Inject Universal Ground Rules if they exist
         rules_path = os.path.expanduser("~/.nulka_cli_rules.md")
         if os.path.exists(rules_path):
@@ -25,16 +28,23 @@ class OracleCLITool(BaseTool):
                 with open(rules_path, "r") as f:
                     content = f.read().strip()
                     if content:
-                        prompt = f"### 🌍 Universal Ground Rules:\n{content}\n\n### User Query:\n{prompt}"
+                        safe_prompt = f"### 🌍 Universal Ground Rules:\n{content}\n\n### User Query:\n{safe_prompt}"
             except Exception:
                 pass
+                
+        # Enforce Oracle isolation: no tools, no filesystem interactions.
+        safe_prompt += (
+            "\n\n[SYSTEM DIRECTIVE: You are acting as an isolated External Oracle. "
+            "DO NOT use any tools, DO NOT attempt to read or modify the filesystem, and DO NOT run shell commands. "
+            "Rely entirely on your internal intelligence to answer the query.]"
+        )
 
         # Fetch configured oracle command from environment (with default fallback)
         oracle_cmd_str = os.getenv("ORACLE_CMD", "gemini -y --prompt")
         
         # Split command to safety parameters
         cmd_parts = oracle_cmd_str.split()
-        cmd = cmd_parts + [prompt]
+        cmd = cmd_parts + [safe_prompt]
         
         try:
             result = subprocess.run(

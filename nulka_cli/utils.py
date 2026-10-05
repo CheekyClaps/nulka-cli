@@ -192,33 +192,42 @@ def instantiate_agents(custom_tools=None):
     for agent_key, config in configs.items():
         # Setup tools for each agent based on their requirements
         
-        # 1. Base Exploration Suite (Everyone gets these)
-        agent_tools = [
-            web_search_tool, web_fetch_tool, 
-            read_tool, list_dir_tool, glob_tool, grep_tool
-        ]
+        # 1. Base Exploration Suite (Permissive reading & search for all core agents)
+        if agent_key == "external_oracle":
+            agent_tools = [oracle_cli_tool]
+        else:
+            agent_tools = [
+                web_search_tool, web_fetch_tool, 
+                read_tool, list_dir_tool, glob_tool, grep_tool
+            ]
 
-        if agent_key in ["creator", "auditor", "analyst", "assistant", "strategist"]:
-            # 2. Execution & Modification Suite (Active builders and the General Assistant)
-            agent_tools.extend([write_tool, smart_edit_tool, shell_tool, oracle_cli_tool])
+        # 2. Strict Role-Specific Tool Assignments
+        if agent_key == "creator":
+            # Exclusive file modification rights
+            agent_tools.extend([write_tool, smart_edit_tool])
             
-        if agent_key in ["router", "strategist"]:
-            # 3. UI/Management Suite (For leaders to talk to the user)
+        elif agent_key == "ops_engineer":
+            # Exclusive shell execution rights
+            agent_tools.append(shell_tool)
+            
+        elif agent_key in ["strategist", "router"]:
+            # Management and user interaction suite
             agent_tools.extend([ask_user_tool, update_topic_tool])
             
-        if agent_key == "external_oracle":
+        elif agent_key == "assistant":
+            # General companion gets fallback oracle access
             agent_tools.append(oracle_cli_tool)
             
-        if agent_key == "teacher":
-            # The educational director gets the interactive teaching tool and Oracle Consultant tool
+        elif agent_key == "teacher":
+            # Educational director gets teaching & oracle consultation tools
             agent_tools.extend([interactive_teacher_tool, consult_oracle_tool])
             
-        # Give workspace access tools if passed, BUT explicitly deny them to the external_oracle
+        # Give workspace access tools if passed, BUT explicitly deny them to external_oracle
         if custom_tools and agent_key != "external_oracle":
             agent_tools.extend(custom_tools)
             
-        # The teacher and router agents are allowed to delegate tasks to others
-        allow_delegation = agent_key in ["router", "teacher"]
+        # Managers allowed to delegate tasks to others
+        allow_delegation = agent_key in ["router", "teacher", "strategist"]
             
         agents[agent_key] = Agent(
             role=config["role"],

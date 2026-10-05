@@ -14,12 +14,15 @@ class RunShellCommandTool(BaseTool):
 
     def _run(self, command: str, dir_path: str = ".") -> str:
         """Executes the shell command.
-        
+
         Args:
             command: The exact bash command to execute.
             dir_path: The directory to run the command in.
         """
         try:
+            if not dir_path:
+                dir_path = "."
+
             # Interactive Security Confirmation
             print(f"\n\033[93m⚠️  Agent attempting to RUN COMMAND in '{dir_path}':\n> {command}\033[0m")
             confirm = ask_user_safe("Allow this shell command? [Y/n] ❯ ").strip().lower()

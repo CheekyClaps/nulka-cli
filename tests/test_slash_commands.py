@@ -21,6 +21,19 @@ def mock_session():
 def mock_cli_module():
     return MagicMock()
 
+def test_handle_slash_command_agents(mock_console, mock_session, mock_cli_module):
+    handled = handle_slash_command("/agents", ["/agents"], mock_console, mock_session, mock_cli_module)
+    assert handled is True
+    assert mock_console.print.called
+    table = mock_console.print.call_args[0][0]
+    # Verify table title and columns
+    assert "Available NulkaCLI Departments & Agents" in str(table.title)
+    col_names = [col.header for col in table.columns]
+    assert "Agent" in col_names
+    assert "Role" in col_names
+    assert "Description / Goal" in col_names
+
+
 def test_handle_slash_command_about(mock_console, mock_session, mock_cli_module):
     handled = handle_slash_command("/about", ["/about"], mock_console, mock_session, mock_cli_module)
     assert handled is True

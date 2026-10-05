@@ -66,8 +66,30 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
         console.print("  - [bold]consult_oracle[/bold]: Fallback to universal truth (gemini/claude).")
         return True
     elif cmd == "/agents":
-        console.print("[bold magenta]🤖 Available NulkaCLI Departments:[/bold magenta]")
-        console.print("  - Router, Strategist, Creator, Auditor, Analyst, Assistant, Teacher, External Oracle")
+        from nulka_cli.utils import load_agent_configs
+        from rich.table import Table
+        from rich import box
+
+        configs = load_agent_configs()
+        table = Table(
+            title="🤖 Available NulkaCLI Departments & Agents",
+            header_style="bold magenta",
+            border_style="cyan",
+            title_style="bold cyan",
+            box=box.ROUNDED,
+            show_lines=True
+        )
+        table.add_column("Agent", style="bold green", no_wrap=True)
+        table.add_column("Role", style="bold yellow")
+        table.add_column("Description / Goal", style="white")
+
+        for key, conf in configs.items():
+            name = key.replace("_", " ").title()
+            role = conf.get("role", "").strip()
+            goal = conf.get("goal", "").strip()
+            table.add_row(name, role, goal)
+
+        console.print(table)
         return True
     
     # 3. Output Management
