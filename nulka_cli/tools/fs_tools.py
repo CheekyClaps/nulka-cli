@@ -2,6 +2,8 @@ import fnmatch
 import os
 import re
 import shutil
+import sys
+import difflib
 from pathlib import Path
 
 from langchain.tools import BaseTool
@@ -9,7 +11,14 @@ from rich.console import Console
 
 from nulka_cli.core.state import ask_user_safe
 
-console = Console()
+console = Console(file=sys.__stdout__)
+
+def print_bypass(text: str):
+    try:
+        sys.__stdout__.write(text + "\n")
+        sys.__stdout__.flush()
+    except Exception:
+        print(text)
 
 def show_in_pager(content: str, title: str):
     """Displays massive content blocks safely using Rich's built in pager."""
@@ -53,7 +62,7 @@ class WriteFileTool(BaseTool):
     def _run(self, file_path: str, content: str, make_exec: bool = False) -> str:
         try:
             # Interactive Security Confirmation
-            print(f"\n\033[93m⚠️  Agent attempting to WRITE to: {file_path}\033[0m")
+            print_bypass(f"\n\033[93m⚠️  Agent attempting to WRITE to: {file_path}\033[0m")
             
             while True:
                 # Show preview of what will be written
@@ -61,7 +70,7 @@ class WriteFileTool(BaseTool):
                 preview = '\n'.join(lines[:10])
                 if len(lines) > 10:
                     preview += f"\n... [{len(lines) - 10} more lines omitted for preview]"
-                print(f"\n\033[90m--- Preview of content ---\n{preview}\n--------------------------\033[0m\n")
+                print_bypass(f"\n\033[90m--- Preview of content ---\n{preview}\n--------------------------\033[0m\n")
                 
                 confirm = ask_user_safe("Allow this write operation? [Y/n/v(view)] ❯ ").strip().lower()
                 if confirm == 'v':
@@ -117,32 +126,19 @@ class SmartEditTool(BaseTool):
 
     def _run(self, file_path: str, instruction: str) -> str:
         try:
-            # Interactive Security Confirmation
-            print(f"\n\033[93m⚠️  Agent attempting to SMART-EDIT: {file_path}\033[0m")
-            print(f"\033[90m--- Instruction ---\n{instruction}\n-------------------\033[0m\n")
-
-            while True:
-                confirm = ask_user_safe("Allow this edit operation? [Y/n/v(view)] ❯ ").strip().lower()
-                if confirm == 'v':
-                    if os.path.exists(file_path):
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            show_in_pager(f.read(), f"Current Payload for {file_path}")
-                    else:
-                        print(f"\033[93mFile {file_path} does not exist yet.\033[0m")
-                    continue
-                elif confirm and confirm != 'y':
-                    return f"Action Aborted: User denied permission to edit {file_path}."
-                break
-
             if not os.path.exists(file_path):
                 return f"Error: File {file_path} does not exist."
 
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
+            # Interactive Security Confirmation
+            print_bypass(f"\n\033[93m⚠️  Agent attempting to SMART-EDIT: {file_path}\033[0m")
+            print_bypass(f"\033[90m--- Instruction ---\n{instruction}\n-------------------\033[0m\n")
+            print_bypass("\033[90m[Interpretation Layer: Processing edit with local LLM...]\033[0m")
+
             # Import the local LLM dynamically to avoid circular dependencies
             from langchain.prompts import PromptTemplate
-
             from nulka_cli.utils import ollama_llm
             
             prompt = PromptTemplate(
@@ -157,7 +153,6 @@ class SmartEditTool(BaseTool):
                 )
             )
             
-            print("\033[90m[Interpretation Layer: Processing edit with local LLM...]\033[0m")
             chain = prompt | ollama_llm
             response = chain.invoke({"instruction": instruction, "content": content})
             
@@ -169,12 +164,38 @@ class SmartEditTool(BaseTool):
             else:
                 new_content = new_content.strip('\n')
                 
-            # Basic sanity check (ensure it didn't just truncate the whole file or output conversational text)
+            # Basic sanity check
             if not new_content or (len(new_content) < len(content) * 0.15 and len(content) > 150):
                 return "Error: Internal LLM failed to generate a valid replacement (suspected placeholder output). Action aborted."
                 
             if len(content) == 0 and "please provide" in new_content.lower():
                 return "Error: Target file was empty, and the LLM refused to edit it. If creating a new file, use write_file instead."
+
+            # Generate diff
+            diff = list(difflib.unified_diff(
+                content.splitlines(),
+                new_content.splitlines(),
+                fromfile='Original',
+                tofile='Modified',
+                lineterm=''
+            ))
+            
+            diff_text = '\n'.join(diff) if diff else "(No changes detected)"
+            
+            preview = '\n'.join(diff[:15]) if diff else "(No changes detected)"
+            if len(diff) > 15:
+                preview += f"\n... [{len(diff) - 15} more lines omitted for preview]"
+                
+            print_bypass(f"\n\033[90m--- Diff Preview ---\n{preview}\n--------------------\033[0m\n")
+
+            while True:
+                confirm = ask_user_safe("Allow this edit operation? [Y/n/v(view diff)] ❯ ").strip().lower()
+                if confirm == 'v':
+                    show_in_pager(diff_text, f"Full Diff for {file_path}")
+                    continue
+                elif confirm and confirm != 'y':
+                    return f"Action Aborted: User denied permission to edit {file_path}."
+                break
 
             create_backup(file_path)
             
