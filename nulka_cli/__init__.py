@@ -22,7 +22,8 @@ def _patched_print(self, content: str, color: str):
         # Check if it looks like a tool result
         clean_content = content.strip()
         if clean_content:
-            console.print(Panel(f"[dim cyan]{clean_content}[/dim cyan]", title="🔧 [bold cyan]Tool Output[/bold cyan]", border_style="cyan"))
+            from rich.markup import escape
+            console.print(Panel(f"[dim cyan]{escape(clean_content)}[/dim cyan]", title="🔧 [bold cyan]Tool Output[/bold cyan]", border_style="cyan"))
     else:
         # Default behavior for other prints
         original_print(self, content, color)

@@ -4,6 +4,7 @@ from langchain.tools import BaseTool
 from prompt_toolkit.formatted_text import HTML
 from pydantic import BaseModel, Field
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 
 console = Console()
@@ -30,7 +31,7 @@ class InteractiveTeacherTool(BaseTool):
         valid_agents = ['strategist', 'creator', 'auditor', 'analyst', 'assistant', 'fact_checker']
 
         if agent_name_clean not in valid_agents:
-            console.print(f"\n[bold red]⚠️  Teacher Agent proposed an invalid agent name: '{agent_name}'.[/bold red]")
+            console.print(f"\n[bold red]⚠️  Teacher Agent proposed an invalid agent name: '{escape(agent_name)}'.[/bold red]")
             console.print(f"Available agents to update: {', '.join(valid_agents)}")
             
             from nulka_cli.core.state import ask_user_safe

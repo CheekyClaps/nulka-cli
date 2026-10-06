@@ -8,6 +8,7 @@ from pathlib import Path
 
 from langchain.tools import BaseTool
 from rich.console import Console
+from rich.markup import escape
 
 from nulka_cli.core.state import ask_user_safe
 
@@ -23,7 +24,7 @@ def print_bypass(text: str):
 def show_in_pager(content: str, title: str, lexer: str = None):
     """Displays massive content blocks safely using Rich's built in pager."""
     with console.pager(styles=True):
-        console.print(f"[bold cyan]--- {title} ---[/]\n")
+        console.print(f"[bold cyan]--- {escape(title)} ---[/]\n")
         if lexer:
             from rich.syntax import Syntax
             console.print(Syntax(content, lexer, theme="monokai", word_wrap=True))

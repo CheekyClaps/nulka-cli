@@ -1,5 +1,6 @@
 from langchain.tools import BaseTool
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.prompt import Prompt
 
@@ -14,7 +15,7 @@ class AskUserTool(BaseTool):
 
     def _run(self, question: str) -> str:
         console.print("\n[bold yellow]🤖 Agent Needs Input:[/bold yellow]")
-        console.print(f"[white]{question}[/white]")
+        console.print(f"[white]{escape(question)}[/white]")
         
         try:
             answer = Prompt.ask("[bold cyan]Your Answer[/bold cyan]")
