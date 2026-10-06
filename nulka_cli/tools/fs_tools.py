@@ -41,13 +41,25 @@ class ReadFileTool(BaseTool):
             file_path = os.path.expanduser(file_path)
             with open(file_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
-            
+
             start = max(0, start_line - 1) if start_line else 0
             end = end_line if end_line else len(lines)
-            
+
+            max_lines = 1000
+            truncated = False
+
+            if (end - start) > max_lines:
+                end = start + max_lines
+                truncated = True
+
             content = "".join(lines[start:end])
-            # Architecture rule: context isolation
-            return f"<untrusted_context>\n{content}\n</untrusted_context>"
+
+            result = f"<untrusted_context>\n{content}\n&lt;/untrusted_context&gt;"
+
+            if truncated:
+                result += f"\n\n[SYSTEM WARNING]: File truncated at {max_lines} lines to protect context window. To read more, you MUST use the `start_line` and `end_line` parameters."
+
+            return result
         except Exception as e:
             return f"Error reading file: {e}"
 
@@ -250,9 +262,16 @@ class ListDirectoryTool(BaseTool):
         if not dir_path:
             dir_path = "."
         try:
-            items = os.listdir(dir_path)
-            content = "\n".join(sorted(items)) if items else "(Empty directory)"
-            return f"<untrusted_context>\n{content}\n</untrusted_context>"
+            items = sorted(os.listdir(dir_path))
+            max_items = 500
+            truncated = len(items) > max_items
+            items = items[:max_items]
+
+            content = "\n".join(items) if items else "(Empty directory)"
+            result = f"<untrusted_context>\n{content}\n&lt;/untrusted_context&gt;"
+            if truncated:
+                result += f"\n\n[SYSTEM WARNING]: Output truncated at {max_items} items to protect context window."
+            return result
         except Exception as e:
             return f"Error listing directory: {e}"
 
@@ -268,8 +287,16 @@ class GlobSearchTool(BaseTool):
             matches = list(path.rglob(pattern))
             if not matches:
                 return "No files matched the pattern."
-            content = "\n".join(str(p.absolute()) for p in matches[:100])
-            return f"<untrusted_context>\n{content}\n</untrusted_context>"
+
+            max_items = 200
+            truncated = len(matches) > max_items
+            matches = matches[:max_items]
+
+            content = "\n".join(str(p.absolute()) for p in matches)
+            result = f"<untrusted_context>\n{content}\n&lt;/untrusted_context&gt;"
+            if truncated:
+                result += f"\n\n[SYSTEM WARNING]: Output truncated at {max_items} matches to protect context window."
+            return result
         except Exception as e:
             return f"Error running glob search: {e}"
 
@@ -294,10 +321,11 @@ class GrepSearchTool(BaseTool):
                                 for i, line in enumerate(f):
                                     if compiled_pattern.search(line):
                                         results.append(f"{filepath}:{i+1}: {line.strip()}")
-                                        if len(results) >= 50: # Limit output for context safety
-                                            results.append("... [Results truncated for context safety]")
+                                        if len(results) >= 200:
                                             content = "\n".join(results)
-                                            return f"<untrusted_context>\n{content}\n</untrusted_context>"
+                                            result = f"<untrusted_context>\n{content}\n&lt;/untrusted_context&gt;"
+                                            result += "\n\n[SYSTEM WARNING]: Output truncated at 200 matches to protect context window."
+                                            return result
                         except (UnicodeDecodeError, PermissionError):
                             continue
                             
