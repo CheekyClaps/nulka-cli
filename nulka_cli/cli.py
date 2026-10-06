@@ -150,7 +150,7 @@ def analyze_prompt_intent(prompt: str) -> dict:
                         break
         return result
     except Exception as e:
-        console.print(f"[bold red]Router Error during analysis: {e}[/]")
+        console.print(f"Router Error during analysis: {e}", style="bold red", markup=False)
         return result
 
 def calculate_hallucination_risk(prompt: str) -> int:
@@ -639,7 +639,7 @@ def pull_ollama_model(model_name: str):
     except subprocess.CalledProcessError:
         console.print(f"\n[bold red]❌ Failed to pull model '{model_name}'. Please verify the name is correct.[/]")
     except Exception as e:
-        console.print(f"\n[bold red]❌ Error: {e}[/]")
+        console.print(f"\n❌ Error: {e}", style="bold red", markup=False)
 
 def load_ollama_model(model_name: str):
     """Loads (runs) a model via Ollama."""
@@ -678,7 +678,7 @@ def load_ollama_model(model_name: str):
         err_msg = e.stderr.decode() if e.stderr else str(e)
         console.print(f"\n[bold red]❌ Failed to load model '{model_name}'. Please verify the name is correct. {err_msg}[/]")
     except Exception as e:
-        console.print(f"\n[bold red]❌ Error: {e}[/]")
+        console.print(f"\n❌ Error: {e}", style="bold red", markup=False)
 
 def stop_ollama_model(model_name: str):
     """Stops a running model via Ollama."""
@@ -693,7 +693,7 @@ def stop_ollama_model(model_name: str):
     except subprocess.CalledProcessError:
         console.print(f"\n[bold red]❌ Failed to stop model '{model_name}'. Is it currently running?[/]")
     except Exception as e:
-        console.print(f"\n[bold red]❌ Error: {e}[/]")
+        console.print(f"\n❌ Error: {e}", style="bold red", markup=False)
 
 def remove_ollama_model(model_name: str):
     """Removes a model via Ollama."""
@@ -708,7 +708,7 @@ def remove_ollama_model(model_name: str):
     except subprocess.CalledProcessError:
         console.print(f"\n[bold red]❌ Failed to remove model '{model_name}'. Please verify the name is correct.[/]")
     except Exception as e:
-        console.print(f"\n[bold red]❌ Error: {e}[/]")
+        console.print(f"\n❌ Error: {e}", style="bold red", markup=False)
 
 def run_onboarding_wizard():
     """Starts a beautiful Python-native onboarding setup wizard if no config is found."""
@@ -785,7 +785,7 @@ def run_onboarding_wizard():
         # Load dotenv to reload environment variables on the fly
         load_dotenv(CONFIG_PATH, override=True)
     except Exception as e:
-        console.print(f"[bold red]❌ Failed to save configuration: {e}[/bold red]\n")
+        console.print(f"❌ Failed to save configuration: {e}\n", style="bold red", markup=False)
 
 def run_interactive_cli(single_query: str | None = None):
     import os
@@ -913,7 +913,7 @@ def run_interactive_cli(single_query: str | None = None):
         except KeyboardInterrupt:
             console.print("\n[bold red]🛑 Generation interrupted by user. Returning to prompt...[/]")
         except Exception as e:
-            console.print(f"[bold red]Execution Error: {e}[/]")
+            console.print(f"Execution Error: {e}", style="bold red", markup=False)
             
         return False
 

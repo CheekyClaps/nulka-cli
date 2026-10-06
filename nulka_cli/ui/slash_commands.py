@@ -114,44 +114,45 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
     elif cmd == "/init":
         workspace_dir = os.path.join(os.path.abspath(os.getcwd()), ".nulka_cli")
         if os.path.exists(workspace_dir):
-            console.print(f"[bold yellow]⚠️ Workspace already initialized at {workspace_dir}[/bold yellow]")
+            console.print(f"[bold yellow]⚠️ Workspace already initialized at {escape(workspace_dir)}[/bold yellow]")
         else:
             try:
                 os.makedirs(workspace_dir)
                 with open(os.path.join(workspace_dir, "session.json"), "w", encoding="utf-8") as f:
                     f.write('{"history": []}')
-                console.print(f"[bold green]✅ Successfully initialized NulkaCLI workspace at {workspace_dir}[/bold green]")
+                console.print(f"[bold green]✅ Successfully initialized NulkaCLI workspace at {escape(workspace_dir)}[/bold green]")
                 console.print("[dim]Session progress and workspace memory will now be persistently saved here.[/dim]")
             except Exception as e:
-                console.print(f"[bold red]❌ Failed to initialize workspace: {e}[/bold red]")
+                console.print(f"❌ Failed to initialize workspace: {e}", style="bold red", markup=False)
         return True
     elif cmd == "/cd":
         target_dir = os.path.expanduser(" ".join(parts[1:]) if len(parts) > 1 else "~")
         target_dir = os.path.abspath(target_dir)
         if not os.path.exists(target_dir):
-            console.print(f"[bold red]❌ Directory does not exist: {target_dir}[/bold red]")
+            console.print(f"[bold red]❌ Directory does not exist: {escape(target_dir)}[/bold red]")
         elif not os.path.isdir(target_dir):
-            console.print(f"[bold red]❌ Path is not a directory: {target_dir}[/bold red]")
+            console.print(f"[bold red]❌ Path is not a directory: {escape(target_dir)}[/bold red]")
         else:
             try:
                 os.chdir(target_dir)
                 if target_dir not in state.active_workspace_dirs:
                     state.active_workspace_dirs.append(target_dir)
-                console.print(f"[bold green]✅ Changed working directory to:[/] [cyan]{target_dir}[/cyan]")
+                console.print(f"[bold green]✅ Changed working directory to:[/] [cyan]{escape(target_dir)}[/cyan]")
             except Exception as e:
-                console.print(f"[bold red]❌ Failed to change directory: {e}[/bold red]")
+                console.print(f"❌ Failed to change directory: {e}", style="bold red", markup=False)
         return True
     elif cmd == "/pwd":
-        console.print(f"📂 [bold]Current Working Directory:[/bold] [cyan]{os.getcwd()}[/cyan]")
+        from rich.markup import escape
+        console.print(f"📂 [bold]Current Working Directory:[/bold] [cyan]{escape(os.getcwd())}[/cyan]")
         return True
     elif cmd in ["/ls", "/list"]:
         target_dir = os.path.expanduser(" ".join(parts[1:]) if len(parts) > 1 else ".")
         target_dir = os.path.abspath(target_dir)
         if not os.path.exists(target_dir):
-            console.print(f"[bold red]❌ Path does not exist: {target_dir}[/bold red]")
+            console.print(f"[bold red]❌ Path does not exist: {escape(target_dir)}[/bold red]")
             return True
         if not os.path.isdir(target_dir):
-            console.print(f"[bold red]❌ Path is not a directory: {target_dir}[/bold red]")
+            console.print(f"[bold red]❌ Path is not a directory: {escape(target_dir)}[/bold red]")
             return True
         try:
             items = sorted(os.listdir(target_dir))
@@ -170,13 +171,13 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
                 else:
                     files.append(item)
             
-            console.print(f"📂 [bold]Listing directory:[/bold] [cyan]{target_dir}[/cyan]")
+            console.print(f"📂 [bold]Listing directory:[/bold] [cyan]{escape(target_dir)}[/cyan]")
             for d in dirs:
-                console.print(f"  [bold blue]📁 {d}/[/bold blue]")
+                console.print(f"  [bold blue]📁 {escape(d)}/[/bold blue]")
             for f in files:
-                console.print(f"  📄 {f}")
+                console.print(f"  📄 {escape(f)}")
         except Exception as e:
-            console.print(f"[bold red]❌ Failed to list directory: {e}[/bold red]")
+            console.print(f"❌ Failed to list directory: {e}", style="bold red", markup=False)
         return True
     elif cmd in ["/dir", "/directory", "/workspace"]:
         subcmd = parts[1].lower() if len(parts) > 1 else "show"
@@ -184,13 +185,13 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
             console.print("[bold yellow]📂 Active Workspace Directories:[/bold yellow]")
             for d in state.active_workspace_dirs:
                 active_marker = " [bold green](Current)[/bold green]" if d == os.getcwd() else ""
-                console.print(f"  ➔ [cyan]{d}[/cyan]{active_marker}")
+                console.print(f"  ➔ [cyan]{escape(d)}[/cyan]{active_marker}")
         elif subcmd == "add" and len(parts) >= 3:
             for p in " ".join(parts[2:]).split(","):
                 p_exp = os.path.abspath(os.path.expanduser(p.strip()))
                 if os.path.isdir(p_exp) and p_exp not in state.active_workspace_dirs:
                     state.active_workspace_dirs.append(p_exp)
-                    console.print(f"[bold green]✅ Added to workspace:[/bold green] [cyan]{p_exp}[/cyan]")
+                    console.print(f"[bold green]✅ Added to workspace:[/bold green] [cyan]{escape(p_exp)}[/cyan]")
         elif subcmd in ["set", "cd"] and len(parts) >= 3:
             handle_slash_command("/cd", ["/cd"] + parts[2:], console, session, cli_module)
         else:
@@ -277,7 +278,7 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
         
         status = "[bold green]SAFE[/]" if score < thresh else "[bold red]HIGH RISK (WILL ROUTE TO ORACLE)[/]"
         console.print("\n[bold cyan]Prompt Risk Analysis:[/bold cyan]")
-        console.print(f"Query: '{query}'")
+        console.print(f"Query: '{escape(query)}'")
         console.print(f"Score: [bold yellow]{score}[/bold yellow] (Threshold: {thresh:.2f}) -> {status}\n")
         return True
     elif cmd == "/trust":
@@ -347,7 +348,7 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
             console.print("[bold green]✅ Session history successfully compressed into a dense memory block![/bold green]")
             console.print(f"[dim]{summary.strip()}[/dim]")
         except Exception as e:
-            console.print(f"[bold red]❌ Failed to compress history: {e}[/bold red]")
+            console.print(f"❌ Failed to compress history: {e}", style="bold red", markup=False)
         return True
 
     elif cmd == "/rewind":
