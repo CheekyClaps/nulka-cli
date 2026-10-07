@@ -4,6 +4,7 @@ from .fs_tools import (
     GrepSearchTool,
     ListDirectoryTool,
     ReadFileTool,
+    SearchReplaceTool,
     SmartEditTool,
     WriteFileTool,
 )
@@ -23,8 +24,9 @@ __all__ = [
     "ListDirectoryTool",
     "OracleCLITool",
     "ReadFileTool",
-    "ReplaceTextTool",
     "RunShellCommandTool",
+    "SearchReplaceTool",
+    "SmartEditTool",
     "UpdateTopicTool",
     "WebFetchTool",
     "WebSearchTool",

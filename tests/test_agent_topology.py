@@ -27,6 +27,7 @@ def test_tool_isolation_boundaries():
 
     # 1. Creator Verification
     assert "write_file" in creator_tools
+    assert "search_replace" in creator_tools
     assert "smart_edit" in creator_tools
     assert "run_shell_command" not in creator_tools
 
@@ -34,12 +35,14 @@ def test_tool_isolation_boundaries():
     assert "read_file" in auditor_tools
     assert "grep_search" in auditor_tools
     assert "write_file" not in auditor_tools
+    assert "search_replace" not in auditor_tools
     assert "smart_edit" not in auditor_tools
     assert "run_shell_command" not in auditor_tools
 
     # 3. Ops Engineer Verification (System admin)
     assert "run_shell_command" in ops_tools
     assert "write_file" not in ops_tools
+    assert "search_replace" not in ops_tools
     assert "smart_edit" not in ops_tools
 
 

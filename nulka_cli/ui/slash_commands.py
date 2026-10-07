@@ -43,6 +43,10 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
         status = "[bold green]ON[/bold green]" if state.vim_mode else "[bold red]OFF[/bold red]"
         console.print(f"⌨️  [bold]Vim Mode:[/bold] {status}")
         return True
+    elif cmd == "/tui":
+        console.print("[bold cyan]🚀 Switching to Modern Textual TUI Mode...[/bold cyan]")
+        cli_module.run_tui_cli()
+        return True
     elif cmd in ["/quit", "/exit"]:
         if "--delete" in parts:
             history_file = os.path.join(os.path.expanduser("~"), ".nulka_cli_history")
@@ -486,6 +490,7 @@ def print_help(console):
         "  [bold cyan]/clear[/]              Clear the screen and reset session context\n"
         "  [bold cyan]/rewind[/]             Undo the last turn and restore modified files\n"
         "  [bold cyan]/vim[/]                Toggle Vim-mode keybindings for the prompt\n"
+        "  [bold cyan]/tui[/]                Launch modern, non-blocking Textual TUI interface\n"
         "  [bold cyan]/quit[/]               Exit session (use --delete to purge history)\n\n"
         "[bold yellow]Workflow & Planning[/bold yellow]\n"
         "  [bold cyan]/plan <goal>[/]        Safe Mode: Architect writes plan.md without executing\n"

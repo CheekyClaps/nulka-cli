@@ -13,6 +13,7 @@ from nulka_cli.tools.fs_tools import (
     GrepSearchTool,
     ListDirectoryTool,
     ReadFileTool,
+    SearchReplaceTool,
     SmartEditTool,
     WriteFileTool,
 )
@@ -175,12 +176,13 @@ def instantiate_agents(custom_tools=None):
     # Workspace & File System Tools
     read_tool = ReadFileTool()
     write_tool = WriteFileTool()
+    search_replace_tool = SearchReplaceTool()
     smart_edit_tool = SmartEditTool()
     list_dir_tool = ListDirectoryTool()
     glob_tool = GlobSearchTool()
     grep_tool = GrepSearchTool()
     shell_tool = RunShellCommandTool()
-    
+
     # UI/Interactive Tools for Managers
     ask_user_tool = AskUserTool()
     update_topic_tool = UpdateTopicTool()
@@ -191,7 +193,7 @@ def instantiate_agents(custom_tools=None):
     # Distribute tools to relevant agents
     for agent_key, config in configs.items():
         # Setup tools for each agent based on their requirements
-        
+
         # 1. Base Exploration Suite (Permissive reading & search for all core agents)
         if agent_key == "external_oracle":
             agent_tools = [oracle_cli_tool]
@@ -203,8 +205,8 @@ def instantiate_agents(custom_tools=None):
 
         # 2. Strict Role-Specific Tool Assignments
         if agent_key == "creator":
-            # Exclusive file modification rights
-            agent_tools.extend([write_tool, smart_edit_tool])
+            # Exclusive file modification rights (both fast search-replace and complex smart-edit)
+            agent_tools.extend([write_tool, search_replace_tool, smart_edit_tool])
             
         elif agent_key == "ops_engineer":
             # Exclusive shell execution rights

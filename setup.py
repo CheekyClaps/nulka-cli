@@ -18,11 +18,13 @@ setup(
         "nulka_cli": ["config/*.yaml", "config/agents/*.md"],
     },
     install_requires=[
-        "crewai",
-        "langchain",
-        "langchain-community",
+        "crewai==0.11.2",
+        "langchain==0.1.20",
+        "langchain-community==0.0.38",
+        "docstring-parser>=0.16",
         "pydantic>=2.0",
         "rich>=13.0",
+        "textual>=0.80.0",
         "prompt_toolkit>=3.0",
         "pyyaml",
         "python-dotenv",
@@ -32,7 +34,8 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "nulka-cli=nulka_cli.cli:run_interactive_cli",
+            "nulka-cli=nulka_cli.main:main",
+            "nulka_cli=nulka_cli.main:main",
         ],
     },
     python_requires=">=3.10",

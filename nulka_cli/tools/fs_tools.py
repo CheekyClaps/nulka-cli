@@ -263,6 +263,82 @@ class SmartEditTool(BaseTool):
         except Exception as e:
             return f"Error executing smart edit: {e}"
 
+class SearchReplaceTool(BaseTool):
+    name: str = "search_replace"
+    description: str = (
+        "Replaces exact occurrences of 'old_string' with 'new_string' in an existing file. "
+        "Fast, token-efficient, and precise for targeted changes. "
+        "Arguments: 'file_path' (string), 'old_string' (exact literal text to find), "
+        "'new_string' (exact replacement text), and optional 'allow_multiple' (boolean, default False)."
+    )
+
+    def _run(self, file_path: str, old_string: str = "", new_string: str = "", allow_multiple: bool = False) -> str:
+        if not old_string:
+            return "Error: You must provide 'old_string' containing the text to find."
+        try:
+            file_path = os.path.expanduser(file_path)
+            if not os.path.exists(file_path):
+                return f"Error: File '{file_path}' does not exist."
+
+            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+
+            count = content.count(old_string)
+            if count == 0:
+                return f"Error: Target text not found in '{file_path}'."
+            if count > 1 and not allow_multiple:
+                return f"Error: Target text found {count} times in '{file_path}'. Provide more surrounding context to uniquely target the replacement, or set allow_multiple=True."
+
+            if allow_multiple:
+                modified_content = content.replace(old_string, new_string)
+            else:
+                modified_content = content.replace(old_string, new_string, 1)
+
+            if modified_content == content:
+                return "No changes were made. The file content is already identical."
+
+            diff = list(difflib.unified_diff(
+                content.splitlines(),
+                modified_content.splitlines(),
+                fromfile=f"Original ({file_path})",
+                tofile=f"Modified ({file_path})",
+                lineterm=''
+            ))
+
+            diff_text = '\n'.join(diff)
+            preview_lines = diff[:15]
+            if len(diff) > 15:
+                preview_lines.append(f"... [{len(diff) - 15} more lines omitted for preview]")
+            preview = '\n'.join(preview_lines)
+
+            print_bypass(f"\n\033[93m⚠️  Agent attempting to SEARCH-REPLACE: {file_path}\033[0m")
+            console.print("\n[bold cyan]--- Diff Preview ---[/]")
+            from rich.syntax import Syntax
+            console.print(Syntax(preview, "diff", theme="monokai", word_wrap=True))
+            console.print("[bold cyan]--------------------[/]\n")
+
+            while True:
+                confirm = ask_user_safe("Allow this replace operation? [Y/n/v(view diff)] ❯ ").strip().lower()
+                if confirm == 'v':
+                    show_in_pager(diff_text, f"Full Diff for {file_path}", lexer="diff")
+                    continue
+                elif confirm and confirm != 'y':
+                    feedback = ask_user_safe("Provide feedback to the agent (leave blank to cancel completely) ❯ ").strip()
+                    if feedback:
+                        return f"Action Aborted: User denied permission. User Feedback: {feedback}"
+                    else:
+                        return f"Action Aborted by User: You MUST NOT retry this operation. Stop immediately and explain to the user that the action was cancelled."
+                break
+
+            create_backup(file_path)
+
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(modified_content)
+
+            return f"Successfully replaced text in {file_path} (Backup saved as .bak)"
+        except Exception as e:
+            return f"Error executing search_replace: {e}"
+
 class ListDirectoryTool(BaseTool):
     name: str = "list_directory"
     description: str = "Lists the names of files and subdirectories directly within a specified directory path."

@@ -56,6 +56,11 @@ def test_handle_slash_command_vim_toggle(mock_console, mock_session, mock_cli_mo
     assert handled is True
     assert state.vim_mode != initial_mode
 
+def test_handle_slash_command_tui(mock_console, mock_session, mock_cli_module):
+    handled = handle_slash_command("/tui", ["/tui"], mock_console, mock_session, mock_cli_module)
+    assert handled is True
+    assert mock_cli_module.run_tui_cli.called
+
 def test_handle_slash_command_init_workspace(tmp_path, mock_console, mock_session, mock_cli_module):
     # Temporarily change directory to tmp_path to test workspace init safely
     original_dir = os.getcwd()

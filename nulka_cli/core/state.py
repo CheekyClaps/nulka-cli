@@ -13,10 +13,26 @@ class SessionState:
         self.show_metrics: bool = True
         self.active_workspace_dirs: list[str] = [os.path.abspath(os.getcwd())]
         self.vim_mode: bool = False
+        self.auto_approve: bool = False
+        self.tui_mode: bool = False
         self.history: list[dict] = []
+        self.stream_listener = None
+        self.user_prompt_handler = None
         
         # Attempt to load recoverable session if it exists in the current workspace
         self.load_session()
+
+    def set_stream_listener(self, listener):
+        """Sets a callback to receive real-time streaming tool output (e.g. TUI Action Drawer)."""
+        self.stream_listener = listener
+
+    def stream_line(self, line: str):
+        """Dispatches a streamed line to the active listener if one exists."""
+        if self.stream_listener:
+            try:
+                self.stream_listener(line)
+            except Exception:
+                pass
 
     def get_workspace_dir(self) -> str:
         """Returns the local workspace .nulka_cli directory if it exists, otherwise falls back to a global directory."""
@@ -91,6 +107,15 @@ def ask_user_safe(prompt_text: str, default: str = "", style_dict: dict | None =
     A bulletproof interactive prompt that automatically detects the terminal capabilities.
     Falls back to standard python input() if prompt_toolkit or CPR is unavailable.
     """
+    if state.auto_approve:
+        return "y"
+
+    if state.user_prompt_handler:
+        try:
+            return state.user_prompt_handler(prompt_text)
+        except Exception:
+            pass
+
     use_fallback = not sys.stdout.isatty() or not sys.stdin.isatty()
     
     if use_fallback:

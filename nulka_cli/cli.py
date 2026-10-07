@@ -189,8 +189,31 @@ def get_active_model_name() -> str:
     from nulka_cli.utils import ollama_llm
     return ollama_llm.model
 
+def should_auto_plan(prompt: str, predefined_route: str | None = None) -> bool:
+    """Determines if a prompt requires an upfront Safe Mode Planning phase (like OpenCode's Plan Agent).
+    Engages planning when:
+    1. The prompt involves structural changes, migrations, redesigns, or roadmaps.
+    2. The prompt is NOT an explicit execution directive (e.g. 'proceed', 'continue', 'build it').
+    """
+    p = prompt.lower().strip()
+    
+    # Direct execution bypass phrases
+    bypass_words = ["proceed", "continue", "apply it", "build it", "do it", "go ahead", "execute"]
+    if any(p.startswith(w) or p == w for w in bypass_words):
+        return False
+
+    # Explicit architectural / planning indicators
+    plan_indicators = ["refactor", "architect", "migration", "redesign", "overhaul", "plan", "blueprint", "roadmap"]
+    if any(ind in p for ind in plan_indicators):
+        return True
+
+    if predefined_route == "STRATEGIST":
+        return True
+
+    return False
+
 def route_request(prompt: str, predefined_route: str | None = None) -> str:
-    """Integrates dynamic HRF evaluation and routes the request."""
+    """Integrates dynamic HRF evaluation, auto-planning, and routes the request."""
 
     # 0. Evaluate Hallucination Risk Factor (HRF)
     hrf_score = calculate_hallucination_risk(prompt)
@@ -230,11 +253,27 @@ def route_request(prompt: str, predefined_route: str | None = None) -> str:
     if hrf_score >= dynamic_threshold:
         console.print(f"[bold yellow]⚠️ High Hallucination Risk Factor Detected ({hrf_score} >= threshold {dynamic_threshold:.1f}). Defaulting to Universal Oracle...[/]")
         return "ORACLE"
+
+    # Auto-Planning: High complexity or architectural restructuring triggers Safe Mode Plan first
+    if should_auto_plan(prompt, predefined_route):
+        console.print("[bold cyan]📋 Complex architectural task detected. Engaging Safe Mode Planning (OpenCode Plan Mode)...[/]")
+        return "PLAN"
         
     return predefined_route if predefined_route else "GENERAL"
 
 def execute_crew_workflow(route: str, prompt: str):
     """Dynamically assembles and kicks off the perfect Crew of agents based on the route."""
+    if route == "PLAN":
+        console.print("[bold cyan]📝 Safe Mode Planning engaged: The Strategist is drafting 'plan.md' without modifying codebase files...[/]")
+        plan_prompt = (
+            f"Goal: {prompt}\n\n"
+            "CRITICAL INSTRUCTION: You are in SAFE MODE (Plan Mode). "
+            "Research the codebase thoroughly using read tools, and strictly write a comprehensive, "
+            "step-by-step implementation checklist to 'plan.md'. "
+            "Do NOT execute or modify any other files in the workspace."
+        )
+        return execute_crew_workflow("STRATEGIST", plan_prompt)
+
     context = get_system_context()
     
     # Inject conversational history into the prompt for the agents
@@ -946,6 +985,68 @@ def run_interactive_cli(single_query: str | None = None):
 
         if _process_turn(user_input):
             break
+
+def run_tui_cli(workspace_dir: str | None = None):
+    """Launches NulkaCLI in modern Textual TUI mode with non-blocking async execution and live action streaming."""
+    from io import StringIO
+    from rich.console import Console
+    from nulka_cli.core.state import state
+    from nulka_cli.ui.tui_app import NulkaApp
+
+    # Configure state for TUI execution
+    state.tui_mode = True
+    state.auto_approve = True
+
+    def on_submit(user_input: str, app_instance: NulkaApp):
+        state.set_stream_listener(app_instance.stream_action)
+        try:
+            # Check for slash commands
+            if user_input.startswith("/"):
+                parts = user_input.split()
+                cmd = parts[0].lower()
+
+                if cmd in ["/quit", "/exit"]:
+                    app_instance.exit()
+                    return
+                elif cmd == "/clear":
+                    app_instance.clear_chat()
+                    return
+
+                from nulka_cli.ui.slash_commands import handle_slash_command
+
+                # Capture console output from slash commands to display inside TUI
+                capture_buffer = StringIO()
+                capture_console = Console(file=capture_buffer, force_terminal=True, width=80)
+
+                handled = handle_slash_command(cmd, parts, capture_console, None, sys.modules[__name__])
+                captured_text = capture_buffer.getvalue().strip()
+                if captured_output := captured_text:
+                    app_instance.add_system_message(captured_output)
+                elif not handled:
+                    app_instance.add_system_message(f"❌ Unknown command: {cmd}. Type /help for assistance.")
+                return
+
+            # 1. Scrutinize
+            scrutiny_res = scrutinize_prompt(user_input)
+            proposed_route = scrutiny_res.get("route", "GENERAL")
+
+            # 2. Finalize Route (HRF + Auto-Planning)
+            route = route_request(user_input, predefined_route=proposed_route)
+            app_instance.set_thinking(True, f"⏳ Executing workflow via {route}...")
+
+            # 3. Execute
+            result = execute_crew_workflow(route, user_input)
+            app_instance.add_agent_message(route, str(result))
+        except Exception as e:
+            app_instance.add_system_message(f"Execution Error: {e}")
+        finally:
+            state.set_stream_listener(None)
+
+    app = NulkaApp(workspace_dir=workspace_dir or os.getcwd(), on_submit_callback=on_submit)
+    try:
+        app.run()
+    finally:
+        state.tui_mode = False
 
 if __name__ == "__main__":
     run_interactive_cli()
