@@ -36,11 +36,20 @@ class ReadFileTool(BaseTool):
     name: str = "read_file"
     description: str = "Reads the content of a specified file. Optionally use start_line and end_line for targeted reads."
 
-    def _run(self, file_path: str, start_line: int | None = None, end_line: int | None = None) -> str:
+    def _run(self, file_path: str, start_line: int | str | None = None, end_line: int | str | None = None) -> str:
         try:
+            if start_line is not None:
+                start_line = int(start_line)
+            if end_line is not None:
+                end_line = int(end_line)
+
             file_path = os.path.expanduser(file_path)
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
                 lines = f.readlines()
+
+            # Strip ANSI escape codes and null bytes to protect LLM context window
+            ansi_escape = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
+            lines = [ansi_escape.sub('', line).replace('\x00', '') for line in lines]
 
             start = max(0, start_line - 1) if start_line else 0
             end = end_line if end_line else len(lines)
@@ -54,7 +63,7 @@ class ReadFileTool(BaseTool):
 
             content = "".join(lines[start:end])
 
-            result = f"<untrusted_context>\n{content}\n&lt;/untrusted_context&gt;"
+            result = f"<untrusted_context>\n{content}\n</untrusted_context>"
 
             if truncated:
                 result += f"\n\n[SYSTEM WARNING]: File truncated at {max_lines} lines to protect context window. To read more, you MUST use the `start_line` and `end_line` parameters."
@@ -110,7 +119,7 @@ class WriteFileTool(BaseTool):
                     if feedback:
                         return f"Action Aborted: User denied permission. User Feedback: {feedback}"
                     else:
-                        return f"Action Aborted: User denied permission to write to {file_path}. DO NOT RETRY. The user has cancelled this operation."
+                        return f"Action Aborted by User: You MUST NOT retry this operation. Stop immediately and explain to the user that the action was cancelled."
                 break
 
             if not content.strip():
@@ -242,7 +251,7 @@ class SmartEditTool(BaseTool):
                     if feedback:
                         return f"Action Aborted: User denied permission. User Feedback: {feedback}"
                     else:
-                        return f"Action Aborted: User denied permission to edit {file_path}. DO NOT RETRY. The user has cancelled this operation."
+                        return f"Action Aborted by User: You MUST NOT retry this operation. Stop immediately and explain to the user that the action was cancelled."
                 break
 
             create_backup(file_path)
@@ -268,7 +277,7 @@ class ListDirectoryTool(BaseTool):
             items = items[:max_items]
 
             content = "\n".join(items) if items else "(Empty directory)"
-            result = f"<untrusted_context>\n{content}\n&lt;/untrusted_context&gt;"
+            result = f"<untrusted_context>\n{content}\n</untrusted_context>"
             if truncated:
                 result += f"\n\n[SYSTEM WARNING]: Output truncated at {max_items} items to protect context window."
             return result
@@ -293,7 +302,7 @@ class GlobSearchTool(BaseTool):
             matches = matches[:max_items]
 
             content = "\n".join(str(p.absolute()) for p in matches)
-            result = f"<untrusted_context>\n{content}\n&lt;/untrusted_context&gt;"
+            result = f"<untrusted_context>\n{content}\n</untrusted_context>"
             if truncated:
                 result += f"\n\n[SYSTEM WARNING]: Output truncated at {max_items} matches to protect context window."
             return result
@@ -323,7 +332,7 @@ class GrepSearchTool(BaseTool):
                                         results.append(f"{filepath}:{i+1}: {line.strip()}")
                                         if len(results) >= 200:
                                             content = "\n".join(results)
-                                            result = f"<untrusted_context>\n{content}\n&lt;/untrusted_context&gt;"
+                                            result = f"<untrusted_context>\n{content}\n</untrusted_context>"
                                             result += "\n\n[SYSTEM WARNING]: Output truncated at 200 matches to protect context window."
                                             return result
                         except (UnicodeDecodeError, PermissionError):

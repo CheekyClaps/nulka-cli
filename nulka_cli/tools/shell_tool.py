@@ -27,7 +27,7 @@ class RunShellCommandTool(BaseTool):
             print(f"\n\033[93m⚠️  Agent attempting to RUN COMMAND in '{dir_path}':\n> {command}\033[0m")
             confirm = ask_user_safe("Allow this shell command? [Y/n] ❯ ").strip().lower()
             if confirm and confirm != 'y':
-                return f"Action Aborted: User denied permission to execute command '{command}'."
+                return f"Action Aborted by User: You MUST NOT retry this command. Do not add sudo. Stop immediately and explain to the user that the action was cancelled."
 
             result = subprocess.run(
                 command,

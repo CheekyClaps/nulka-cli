@@ -28,7 +28,7 @@ class InteractiveTeacherTool(BaseTool):
         """Executes the tool to interactively update agent backstory."""
         # Normalize agent name to find file
         agent_name_clean = agent_name.lower().replace(".md", "").strip()
-        valid_agents = ['strategist', 'creator', 'auditor', 'analyst', 'assistant', 'fact_checker']
+        valid_agents = ['strategist', 'creator', 'auditor', 'analyst', 'assistant', 'fact_checker', 'ops_engineer', 'router', 'teacher', 'external_oracle']
 
         if agent_name_clean not in valid_agents:
             console.print(f"\n[bold red]⚠️  Teacher Agent proposed an invalid agent name: '{escape(agent_name)}'.[/bold red]")

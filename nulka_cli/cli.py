@@ -121,7 +121,7 @@ def analyze_prompt_intent(prompt: str) -> dict:
         "- AUDITOR: Reviewing work, QA testing, searching for secrets/vulnerabilities, verifying compliance, or factual fact-checking.\n"
         "- OPS: Executing concrete, direct operating system operations and shell commands (e.g., starting/stopping a service, running build/test scripts, checking a specific process or port, installing packages). NOT for broad evaluation or open-ended inquiries like 'is my system optimized?'.\n"
         "- ANALYST: Researching topics online, parsing structured data, summarizing large information sets, or extracting intelligence.\n"
-        "- GENERAL: General conversational chats or vague instructions.\n\n"
+        "- GENERAL: Answering questions, providing examples, explaining concepts, or general conversational chats where the user just wants information, NOT execution or file modification.\n\n"
         "OUTPUT FORMAT (You must output exactly these two lines):\n"
         "SCRUTINY: [Your question or PROCEED]\n"
         "ROUTE: [Category Name]\n\n"

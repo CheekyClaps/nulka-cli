@@ -89,3 +89,30 @@ def test_web_search_tool():
     search = WebSearchTool()
     res = search._run("test query")
     assert isinstance(res, str)
+
+def test_read_file_tool_advanced(tmp_path):
+    """Test ReadFileTool with string boundaries, ANSI codes, and null bytes."""
+    test_file = tmp_path / "advanced.txt"
+    # Create a file with 5 lines, including ANSI and null bytes
+    content = (
+        "Line 1\n"
+        "Line 2 \x1b[31mRed\x1b[0m\n"
+        "Line 3 \x00 Null\n"
+        "Line 4\n"
+        "Line 5\n"
+    )
+    test_file.write_text(content, encoding="utf-8")
+
+    reader = ReadFileTool()
+    res = reader._run(str(test_file), start_line="2", end_line="3")
+    
+    # Verify ANSI codes and null bytes are stripped
+    assert "\x1b[31m" not in res
+    assert "\x00" not in res
+    
+    # Verify correct lines are returned (Line 2 and Line 3 stripped)
+    assert "Line 2 Red" in res
+    assert "Line 3  Null" in res
+    assert "Line 1" not in res
+    assert "Line 4" not in res
+    assert "</untrusted_context>" in res
