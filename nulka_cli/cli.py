@@ -332,7 +332,8 @@ def execute_crew_workflow(route: str, prompt: str):
             )
         
     full_prompt_with_history = f"{history_context}Current Request: '{prompt}'"
-    
+
+    import os
     {
         "user_prompt": prompt,
         "current_time": context["current_time"],
