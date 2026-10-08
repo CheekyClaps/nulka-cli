@@ -220,10 +220,6 @@ def should_auto_plan(prompt: str, predefined_route: str | None = None) -> bool:
 
     return False
 
-def scrutinize_prompt(prompt: str) -> dict:
-    # A lightweight LLM scrutinizer could evaluate the user prompt here
-    return {"route": "GENERAL"}
-
 def route_request(prompt: str, predefined_route: str | None = None) -> str:
     """Integrates dynamic HRF evaluation, auto-planning, and routes the request."""
 
@@ -1092,9 +1088,14 @@ def run_tui_cli(workspace_dir: str | None = None):
                     app_instance.add_system_message(f"❌ Unknown command: {cmd}. Type /help for assistance.")
                 return
 
-            # 1. Scrutinize
-            scrutiny_res = scrutinize_prompt(user_input)
-            proposed_route = scrutiny_res.get("route", "GENERAL")
+            # 1. Analyze Intent (Scrutiny + Routing in one pass)
+            analysis = analyze_prompt_intent(user_input)
+            scrutiny_result = analysis.get("scrutiny", "PROCEED")
+            proposed_route = analysis.get("route", "GENERAL")
+
+            if scrutiny_result != "PROCEED":
+                app_instance.add_agent_message("ROUTER", f"**Clarification Needed:**\n{scrutiny_result}")
+                return
 
             # 2. Finalize Route (HRF + Auto-Planning)
             route = route_request(user_input, predefined_route=proposed_route)
