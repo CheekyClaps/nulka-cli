@@ -63,3 +63,22 @@ def _patched_transform_in_valid_json(self, text) -> str:
     return text
 
 ToolOutputParser._transform_in_valid_json = _patched_transform_in_valid_json
+
+# --- MONKEY-PATCH LANGCHAIN AgentAction ---
+# CrewAI (0.11.2) uses positional arguments to instantiate AgentAction when handling exceptions,
+# e.g.: output = AgentAction("_Exception", observation, text)
+# Pydantic v2 requires kwargs for BaseModel instantiation.
+from langchain_core.agents import AgentAction
+_original_agent_action_init = AgentAction.__init__
+
+def _patched_agent_action_init(self, *args, **kwargs):
+    if args:
+        if len(args) >= 1 and "tool" not in kwargs:
+            kwargs["tool"] = args[0]
+        if len(args) >= 2 and "tool_input" not in kwargs:
+            kwargs["tool_input"] = args[1]
+        if len(args) >= 3 and "log" not in kwargs:
+            kwargs["log"] = args[2]
+    _original_agent_action_init(self, **kwargs)
+
+AgentAction.__init__ = _patched_agent_action_init
