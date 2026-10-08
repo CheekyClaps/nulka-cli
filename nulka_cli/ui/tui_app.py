@@ -156,8 +156,10 @@ class ChatMessageWidget(Static):
     def on_click(self, event) -> None:
         """Clicking on any message card copies its content to clipboard."""
         from nulka_cli.utils import copy_text_to_clipboard
+        from rich.text import Text
         if self.content:
-            if copy_text_to_clipboard(self.content):
+            plain_text = Text.from_ansi(self.content).plain
+            if copy_text_to_clipboard(plain_text):
                 self.app.notify("Copied message to clipboard!", title="Clipboard")
             else:
                 self.app.notify("Failed to copy message", severity="warning")

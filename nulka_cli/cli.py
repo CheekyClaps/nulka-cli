@@ -1049,7 +1049,7 @@ def run_tui_cli(workspace_dir: str | None = None):
 
                 # Capture console output from slash commands to display inside TUI
                 capture_buffer = StringIO()
-                capture_console = Console(file=capture_buffer, force_terminal=True, width=80)
+                capture_console = Console(file=capture_buffer, force_terminal=True, soft_wrap=True, width=10000)
                 
                 # Temporarily override global console to capture outputs from cli.py functions
                 original_console = sys.modules[__name__].console
