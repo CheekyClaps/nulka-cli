@@ -428,6 +428,8 @@ class NulkaApp(App):
 
     def on_mount(self) -> None:
         """Focus the input field on startup."""
+        import threading
+        self._thread_id = threading.get_ident()
         self.query_one("#user-input", HistoryInput).focus()
         self.current_vram_str = ""
         self.update_subtitle()
