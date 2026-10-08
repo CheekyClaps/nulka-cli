@@ -37,6 +37,8 @@ class ReadFileTool(BaseTool):
     description: str = "Reads the content of a specified file. Optionally use start_line and end_line for targeted reads."
 
     def _run(self, file_path: str, start_line: int | str | None = None, end_line: int | str | None = None) -> str:
+        from nulka_cli.core.state import state
+        state.stream_line(f"[bold cyan]❯ Reading file:[/] [green]{file_path}[/]" + (f" [dim](lines {start_line}-{end_line})[/dim]" if start_line else ""))
         try:
             if start_line is not None:
                 start_line = int(start_line)
@@ -68,8 +70,10 @@ class ReadFileTool(BaseTool):
             if truncated:
                 result += f"\n\n[SYSTEM WARNING]: File truncated at {max_lines} lines to protect context window. To read more, you MUST use the `start_line` and `end_line` parameters."
 
+            state.stream_line("[dim]Read completed successfully.[/dim]")
             return result
         except Exception as e:
+            state.stream_line(f"[bold red]❌ Error reading file: {e}[/]")
             return f"Error reading file: {e}"
 
 import datetime
@@ -87,8 +91,12 @@ class WriteFileTool(BaseTool):
     description: str = "Writes the COMPLETE, fully functional content to a file, creating missing parent directories. Overwrites existing files. Automatically creates a timestamped .bak backup. Rejects writing empty strings to non-empty files. You MUST NOT use placeholders like 'Your code goes here' or omit code. The 'content' argument MUST contain the entire literal file contents."
 
     def _run(self, file_path: str, content: str = "", make_exec: bool = False, new_content: str = "") -> str:
+        from nulka_cli.core.state import state
+        state.stream_line(f"[bold cyan]❯ Writing file:[/] [green]{file_path}[/]")
+        
         content = content or new_content
         if not content:
+            state.stream_line("[bold red]❌ Error: Empty content provided.[/]")
             return "Error: You must provide the 'content' argument containing the file data."
         try:
             file_path = os.path.expanduser(file_path)
@@ -167,6 +175,8 @@ class SmartEditTool(BaseTool):
     description: str = "Replaces or modifies text within an existing file. REQUIRED for targeted edits. Arguments: 'file_path' (string) and 'instruction' (string detailing the change). You MUST INVOKE THIS TOOL to apply your changes; do NOT simply explain what you would do. However, if you determine NO changes are needed after reading the file, DO NOT invoke this tool; simply state that the file is already up to date in your final answer."
 
     def _run(self, file_path: str, instruction: str = "", new_content: str = "") -> str:
+        from nulka_cli.core.state import state
+        state.stream_line(f"[bold cyan]❯ Smart Edit (LLM):[/] [green]{file_path}[/]")
         instruction = instruction or new_content
         if not instruction:
             return "Error: You must provide an 'instruction' argument detailing what to change."
@@ -273,6 +283,8 @@ class SearchReplaceTool(BaseTool):
     )
 
     def _run(self, file_path: str, old_string: str = "", new_string: str = "", allow_multiple: bool = False) -> str:
+        from nulka_cli.core.state import state
+        state.stream_line(f"[bold cyan]❯ Search & Replace:[/] [green]{file_path}[/]")
         if not old_string:
             return "Error: You must provide 'old_string' containing the text to find."
         try:
@@ -344,6 +356,8 @@ class ListDirectoryTool(BaseTool):
     description: str = "Lists the names of files and subdirectories directly within a specified directory path."
 
     def _run(self, dir_path: str = ".") -> str:
+        from nulka_cli.core.state import state
+        state.stream_line(f"[bold cyan]❯ Listing directory:[/] [green]{dir_path}[/]")
         if not dir_path:
             dir_path = "."
         try:
@@ -365,6 +379,8 @@ class GlobSearchTool(BaseTool):
     description: str = "Efficiently finds files matching specific glob patterns (e.g., 'src/**/*.py')."
 
     def _run(self, pattern: str, dir_path: str = ".") -> str:
+        from nulka_cli.core.state import state
+        state.stream_line(f"[bold cyan]❯ Glob search:[/] [green]{pattern}[/] in {dir_path}")
         try:
             path = Path(dir_path)
             if not path.exists():
@@ -390,6 +406,8 @@ class GrepSearchTool(BaseTool):
     description: str = "Searches for a regular expression pattern within file contents across a directory."
 
     def _run(self, pattern: str, dir_path: str = ".", include_pattern: str = "*") -> str:
+        from nulka_cli.core.state import state
+        state.stream_line(f"[bold cyan]❯ Grep search:[/] [green]'{pattern}'[/] in {dir_path}")
         results = []
         try:
             compiled_pattern = re.compile(pattern)
