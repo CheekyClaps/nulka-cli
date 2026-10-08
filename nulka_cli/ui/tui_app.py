@@ -182,6 +182,68 @@ class ChatMessageWidget(Static):
         yield Static(header_text, classes="message-header")
         yield Static(self.content, classes="message-body")
 
+class HistoryInput(Input):
+    """Custom Input widget that supports Up/Down history navigation."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.history = []
+        self.history_index = -1
+        self.draft = ""
+        self.load_history()
+
+    def load_history(self) -> None:
+        import os
+        hist_file = os.path.expanduser("~/.nulka_cli_history")
+        if os.path.exists(hist_file):
+            try:
+                with open(hist_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.startswith("+"):
+                            cmd = line[1:].strip()
+                            if cmd and (not self.history or self.history[-1] != cmd):
+                                self.history.append(cmd)
+            except Exception:
+                pass
+        self.history_index = len(self.history)
+
+    def append_history(self, cmd: str) -> None:
+        cmd = cmd.strip()
+        if not cmd:
+            return
+        if not self.history or self.history[-1] != cmd:
+            self.history.append(cmd)
+            import os
+            import datetime
+            hist_file = os.path.expanduser("~/.nulka_cli_history")
+            try:
+                with open(hist_file, "a", encoding="utf-8") as f:
+                    f.write(f"\n# {datetime.datetime.now()}\n+{cmd}\n")
+            except Exception:
+                pass
+        self.history_index = len(self.history)
+        self.draft = ""
+
+    def on_key(self, event) -> None:
+        """Handle up/down arrow keys for history navigation."""
+        if event.key == "up":
+            event.prevent_default()
+            if self.history_index == len(self.history):
+                self.draft = self.value
+            if self.history_index > 0:
+                self.history_index -= 1
+                self.value = self.history[self.history_index]
+                self.cursor_position = len(self.value)
+        elif event.key == "down":
+            event.prevent_default()
+            if self.history_index < len(self.history):
+                self.history_index += 1
+                if self.history_index == len(self.history):
+                    self.value = self.draft
+                else:
+                    self.value = self.history[self.history_index]
+                self.cursor_position = len(self.value)
+
 
 class NulkaApp(App):
     """The main NulkaCLI Textual Application."""
@@ -360,13 +422,13 @@ class NulkaApp(App):
 
                 # Bottom input field
                 with Container(id="input-container"):
-                    yield Input(placeholder="Type a message or slash command...", id="user-input")
+                    yield HistoryInput(placeholder="Type a message or slash command...", id="user-input")
 
         yield Footer()
 
     def on_mount(self) -> None:
         """Focus the input field on startup."""
-        self.query_one("#user-input", Input).focus()
+        self.query_one("#user-input", HistoryInput).focus()
         self.current_vram_str = ""
         self.update_subtitle()
         self.set_interval(5.0, self.poll_vram_status)
@@ -409,7 +471,7 @@ class NulkaApp(App):
     def action_cancel_action(self) -> None:
         """Handle interrupt/cancellation or copy in input."""
         focused = self.focused
-        if isinstance(focused, Input) and not focused.selection.is_empty:
+        if isinstance(focused, HistoryInput) and not focused.selection.is_empty:
             focused.action_copy()
             return
         self.add_system_message("Action cancelled by user.")
@@ -520,6 +582,10 @@ class NulkaApp(App):
         user_text = event.value.strip()
         if not user_text:
             return
+
+        # Save to history
+        if isinstance(event.input, HistoryInput):
+            event.input.append_history(user_text)
 
         # Clear input field immediately
         event.input.value = ""
