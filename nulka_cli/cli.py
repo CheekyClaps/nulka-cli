@@ -293,6 +293,30 @@ def route_request(prompt: str, predefined_route: str | None = None) -> str:
 
 def execute_crew_workflow(route: str, prompt: str):
     """Dynamically assembles and kicks off the perfect Crew of agents based on the route."""
+    import time
+    start_time = time.time()
+    
+    # 0. FAST-LANE (Bypass CrewAI entirely for simple chats to save latency)
+    # We only do this if it's a GENERAL route and the prompt is super simple/short.
+    if route == "GENERAL" and len(prompt.split()) < 10 and not any(w in prompt.lower() for w in ["file", "search", "read", "code", "run", "make"]):
+        console.print("[dim]⚡ Using Fast-Lane direct LLM response...[/dim]")
+        from nulka_cli.utils import ollama_fast_llm
+        from langchain.schema import HumanMessage, SystemMessage
+        messages = [
+            SystemMessage(content="You are NulkaCLI's fast-lane conversational assistant. Give a very brief, friendly response without using any tools."),
+            HumanMessage(content=prompt)
+        ]
+        res = ollama_fast_llm.invoke(messages)
+        result_text = res.strip()
+        end_time = time.time()
+        state.last_execution_time = end_time - start_time
+        
+        state.last_full_output = result_text
+        condensed_result = format_condensed_output(result_text)
+        from rich.panel import Panel
+        console.print(Panel(condensed_result, title="[bold white]⚡ Fast-Lane Answer[/]", border_style="green"))
+        return result_text
+
     if route == "PLAN":
         console.print("[bold cyan]📝 Safe Mode Planning engaged: The Strategist is drafting 'plan.md' without modifying codebase files...[/]")
         plan_prompt = (
@@ -570,11 +594,12 @@ def execute_crew_workflow(route: str, prompt: str):
     
     # Save absolute raw output to state for the /expand command
     state.last_full_output = result_text
-    
+
     # Condense string for UI display
     condensed_result = format_condensed_output(result_text)
+    from rich.panel import Panel
     console.print(Panel(condensed_result, title=f"[bold white]{title_str}[/]", border_style="green"))
-    
+
     return result_text
     
     # Stabilize HRF baseline for the active model after a successful completion

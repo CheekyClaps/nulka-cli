@@ -229,7 +229,11 @@ def instantiate_agents(custom_tools=None):
             agent_tools.extend(custom_tools)
             
         # Managers allowed to delegate tasks to others
-        allow_delegation = agent_key in ["router", "teacher", "strategist"]
+        allow_delegation = agent_key in ["router", "strategist"]
+        
+        # Use Fast model for planning/routing/analysis to speed up processing
+        # Use heavy main model for coding/writing (creator, ops)
+        agent_llm = ollama_fast_llm if agent_key in ["router", "strategist", "analyst", "assistant"] else ollama_llm
             
         agents[agent_key] = Agent(
             role=config["role"],
@@ -238,7 +242,8 @@ def instantiate_agents(custom_tools=None):
             verbose=True,
             allow_delegation=allow_delegation,
             tools=agent_tools,
-            llm=ollama_llm
+            llm=agent_llm,
+            max_iter=5  # Hard cap iterations to prevent infinite looping
         )
         
     return agents
@@ -314,24 +319,42 @@ def get_best_available_model() -> str:
     env_model = os.getenv("LOCAL_MODEL")
     if env_model and env_model != "unknown":
         return env_model
-        
+
     # 2. Check what is currently loaded in memory
     loaded = get_loaded_models()
     if loaded:
         return loaded[0]
-        
+
     # 3. Check what is downloaded/available locally
     local = get_local_models()
     if local:
         return local[0]
-        
+
     # 4. Total fallback (will likely cause a 404 if not pulled, but avoids crashing on boot)
     return "unknown"
+
+def get_fast_model() -> str:
+    """Returns a fast, smaller model for routing and simple chats (e.g. 7B/8B)."""
+    fast_env = os.getenv("LOCAL_FAST_MODEL")
+    if fast_env and fast_env != "unknown":
+        return fast_env
+
+    # Auto-detect a smaller model if available
+    local = get_local_models()
+    for m in local:
+        if "7b" in m.lower() or "8b" in m.lower() or "mini" in m.lower():
+            return m
+
+    # Fallback to the primary model
+    return get_best_available_model()
 
 # Initialize with the best guess at boot. 
 # We update it dynamically before critical calls if needed.
 local_model_name = get_best_available_model()
+fast_model_name = get_fast_model()
+
 ollama_llm = Ollama(model=local_model_name, base_url="http://localhost:11434")
+ollama_fast_llm = Ollama(model=fast_model_name, base_url="http://localhost:11434")
 
 
 def copy_text_to_clipboard(text: str) -> bool:
