@@ -99,6 +99,42 @@ class SessionState:
         self.save_session()
         self.save_output_cache(output)
 
+    def compress_history(self) -> str | None:
+        """Uses a local LLM to compress the entire conversation history into a single dense context block."""
+        if len(self.history) < 2:
+            return None
+
+        try:
+            from langchain.prompts import PromptTemplate
+            from nulka_cli.utils import ollama_llm
+            
+            history_text = ""
+            for h in self.history:
+                history_text += f"User: {h.get('prompt')}\nAgent: {h.get('output', '')[:300]}...\n\n"
+                
+            prompt = PromptTemplate(
+                input_variables=["history"],
+                template=(
+                    "You are an AI assistant memory compressor. Summarize the following conversation history "
+                    "into a single, concise paragraph that captures the current context, goals, and state of the project. "
+                    "This will be used as the new memory for the agent.\n\n"
+                    "{history}"
+                )
+            )
+            
+            chain = prompt | ollama_llm
+            summary = chain.invoke({"history": history_text}).strip()
+            
+            self.history = [{
+                "prompt": "Context Summary of previous session.",
+                "route": "system",
+                "output": summary
+            }]
+            self.save_session()
+            return summary
+        except Exception as e:
+            return f"Error compressing history: {e}"
+
 # Singleton instance to be shared across the application run
 state = SessionState()
 

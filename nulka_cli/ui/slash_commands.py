@@ -58,42 +58,47 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
 
     # 2. Tools & Agents Inspection
     elif cmd == "/tools":
-        console.print("[bold cyan]🛠️ Available NulkaCLI Tools:[/bold cyan]")
-        console.print("  - [bold]read_file[/bold]: Read file contents.")
-        console.print("  - [bold]write_file[/bold]: Write to files.")
-        console.print("  - [bold]replace[/bold]: Precise file text replacement.")
-        console.print("  - [bold]list_directory[/bold]: List files in a directory.")
-        console.print("  - [bold]glob[/bold]: Glob search files (e.g. **/*.py).")
-        console.print("  - [bold]grep_search[/bold]: Regex content search.")
-        console.print("  - [bold]run_shell_command[/bold]: Execute bash shell commands.")
-        console.print("  - [bold]web_fetch / web_search[/bold]: Web interaction tools.")
-        console.print("  - [bold]consult_oracle[/bold]: Fallback to universal truth (gemini/claude).")
+        from rich.table import Table
+        from rich import box
+        table = Table(box=box.ROUNDED, show_lines=True, padding=(0, 2))
+        table.add_column("Tool Name", style="bold cyan")
+        table.add_column("Description", style="white")
+        table.add_row("read_file", "Read file contents.")
+        table.add_row("write_file", "Write to files.")
+        table.add_row("replace", "Precise file text replacement.")
+        table.add_row("list_directory", "List files in a directory.")
+        table.add_row("glob", "Glob search files (e.g. **/*.py).")
+        table.add_row("grep_search", "Regex content search.")
+        table.add_row("run_shell_command", "Execute bash shell commands.")
+        table.add_row("web_fetch / web_search", "Web interaction tools.")
+        table.add_row("consult_oracle", "Fallback to universal truth (gemini/claude).")
+
+        if hasattr(session, "action_show_info"):
+            session.action_show_info("🛠️ Available NulkaCLI Tools", table)
+        else:
+            console.print(table)
         return True
     elif cmd == "/agents":
         from nulka_cli.utils import load_agent_configs
         from rich.table import Table
         from rich import box
-
+        
         configs = load_agent_configs()
-        table = Table(
-            title="🤖 Available NulkaCLI Departments & Agents",
-            header_style="bold magenta",
-            border_style="cyan",
-            title_style="bold cyan",
-            box=box.ROUNDED,
-            show_lines=True
-        )
+        table = Table(box=box.ROUNDED, show_lines=True, padding=(1, 2))
         table.add_column("Agent", style="bold green", no_wrap=True)
         table.add_column("Role", style="bold yellow")
         table.add_column("Description / Goal", style="white")
-
+        
         for key, conf in configs.items():
             name = key.replace("_", " ").title()
             role = conf.get("role", "").strip()
             goal = conf.get("goal", "").strip()
             table.add_row(name, role, goal)
-
-        console.print(table)
+            
+        if hasattr(session, "action_show_info"):
+            session.action_show_info("🤖 Available NulkaCLI Departments & Agents", table)
+        else:
+            console.print(table)
         return True
     
     # 3. Output Management
@@ -101,14 +106,12 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
         if not state.last_full_output:
             console.print("[bold red]❌ No recent output to copy.[/bold red]")
             return True
-        try:
-            # Fallback copy mechanism (very basic cross-platform support via pyperclip if installed)
-            import pyperclip
-            pyperclip.copy(state.last_full_output)
+        from nulka_cli.utils import copy_text_to_clipboard
+        if copy_text_to_clipboard(state.last_full_output):
             console.print("[bold green]✅ Copied last output to clipboard![/bold green]")
-        except ImportError:
-            console.print("[bold yellow]⚠️ 'pyperclip' not installed. Unable to copy to clipboard.[/bold yellow]")
-            console.print("[dim]Run 'pip install pyperclip' to enable this command.[/dim]")
+        else:
+            console.print("[bold yellow]⚠️ Unable to copy to clipboard automatically.[/bold yellow]")
+            console.print("[dim]Please ensure wl-copy, xsel, or xclip is installed, or hold Shift to select text.[/dim]")
         return True
     elif cmd == "/expand":
         cli_module.execute_expand_pager()
@@ -216,7 +219,14 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
 
     # 6. Model Management
     elif cmd == "/models":
-        cli_module.show_ollama_models()
+        table_content = cli_module.show_ollama_models()
+        if hasattr(session, "action_show_info"):
+            session.action_show_info("🦙 Ollama Local Model Hub", table_content)
+        else:
+            if isinstance(table_content, str):
+                console.print(table_content)
+            else:
+                console.print(table_content)
         return True
     elif cmd == "/pull":
         if len(parts) < 2:
@@ -259,16 +269,35 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
         active_model = get_active_model_name()
         thresh = hrf_manager.get_threshold(active_model)
         base = hrf_manager.get_baseline(active_model)
-        from rich.panel import Panel
-        console.print(Panel(
-            f"Active Model: [bold cyan]{active_model}[/bold cyan]\n"
-            f"Current Threshold: [bold magenta]{thresh:.2f}[/bold magenta]\n"
-            f"Baseline: [dim]{base:.2f}[/dim]\n\n"
-            f"If a prompt's risk score exceeds this threshold, the query defaults to the Oracle.\n"
-            f"Use [bold cyan]/trust[/] to raise the threshold, [bold yellow]/doubt[/] to lower it, and [bold red]/bs[/] to penalize it heavily.\n"
-            f"Use [bold cyan]/risk <prompt>[/] to preview the risk score of a specific prompt.",
-            title="Hallucination Risk Factor (HRF) Status", border_style="blue"
-        ))
+        
+        md_content = f"""
+## Hallucination Risk Factor (HRF) Status
+
+* **Active Model:** `{active_model}`
+* **Current Threshold:** `{thresh:.2f}`
+* **Baseline:** `{base:.2f}`
+
+If a prompt's risk score exceeds this threshold, the query defaults to the Oracle.
+
+### Trust Commands
+* `/trust`: Raise the threshold.
+* `/doubt`: Lower the threshold.
+* `/bs`: Penalize heavily.
+* `/risk <prompt>`: Preview the risk score of a specific prompt.
+"""
+        if hasattr(session, "action_show_info"):
+            session.action_show_info("Hallucination Risk Factor", md_content.strip())
+        else:
+            from rich.panel import Panel
+            console.print(Panel(
+                f"Active Model: [bold cyan]{active_model}[/bold cyan]\n"
+                f"Current Threshold: [bold magenta]{thresh:.2f}[/bold magenta]\n"
+                f"Baseline: [dim]{base:.2f}[/dim]\n\n"
+                f"If a prompt's risk score exceeds this threshold, the query defaults to the Oracle.\n"
+                f"Use [bold cyan]/trust[/] to raise the threshold, [bold yellow]/doubt[/] to lower it, and [bold red]/bs[/] to penalize it heavily.\n"
+                f"Use [bold cyan]/risk <prompt>[/] to preview the risk score of a specific prompt.",
+                title="Hallucination Risk Factor (HRF) Status", border_style="blue"
+            ))
         return True
     elif cmd == "/risk":
         if len(parts) < 2:
@@ -319,40 +348,15 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
         if len(state.history) < 2:
             console.print("[bold yellow]⚠️ Session history is already small. Nothing to compress.[/bold yellow]")
             return True
-            
-        console.print("[bold cyan]🔄 Compressing session history using local LLM...[/bold cyan]")
-        try:
-            from langchain.prompts import PromptTemplate
 
-            from nulka_cli.utils import ollama_llm
-            
-            history_text = ""
-            for h in state.history:
-                history_text += f"User: {h.get('prompt')}\nAgent: {h.get('output', '')[:300]}...\n\n"
-                
-            prompt = PromptTemplate(
-                input_variables=["history"],
-                template=(
-                    "You are an AI assistant memory compressor. Summarize the following conversation history "
-                    "into a single, concise paragraph that captures the current context, goals, and state of the project. "
-                    "This will be used as the new memory for the agent.\n\n"
-                    "{history}"
-                )
-            )
-            
-            chain = prompt | ollama_llm
-            summary = chain.invoke({"history": history_text})
-            
-            state.history = [{
-                "prompt": "Context Summary of previous session.",
-                "route": "system",
-                "output": summary.strip()
-            }]
-            state.save_session()
-            console.print("[bold green]✅ Session history successfully compressed into a dense memory block![/bold green]")
-            console.print(f"[dim]{summary.strip()}[/dim]")
-        except Exception as e:
-            console.print(f"❌ Failed to compress history: {e}", style="bold red", markup=False)
+        console.print("[bold cyan]🔄 Compressing session history using local LLM...[/bold cyan]")
+        summary = state.compress_history()
+        if summary:
+            if "Error" in summary:
+                console.print(f"❌ {summary}", style="bold red")
+            else:
+                console.print("[bold green]✅ Session history successfully compressed into a dense memory block![/bold green]")
+                console.print(f"[dim]{summary}[/dim]")
         return True
 
     elif cmd == "/rewind":
@@ -405,25 +409,29 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
         return True
 
     elif cmd == "/memory":
-        console.print("\n[bold cyan]🧠 Current Session Memory:[/bold cyan]")
+        md_content = "## 🧠 Current Session Memory\n\n"
         if not state.history:
-            console.print("[dim]Session history is currently empty.[/dim]")
+            md_content += "*Session history is currently empty.*\n\n---\n\n"
         else:
             for i, h in enumerate(state.history):
-                preview = h.get('output', '')[:100].replace('\n', ' ')
-                console.print(f"[bold yellow]{i+1}.[/] [dim]User:[/] {h.get('prompt')}")
-                console.print(f"   [dim]Agent ([/][magenta]{h.get('route')}[/][dim]): {preview}...[/dim]\n")
-        
+                preview = h.get('output', '')[:150].replace('\n', ' ')
+                md_content += f"**{i+1}. User:** {h.get('prompt')}\n\n> *Agent ({h.get('route')}):* {preview}...\n\n---\n\n"
+
         rules_path = os.path.expanduser("~/.nulka_cli_rules.md")
         if os.path.exists(rules_path):
-            console.print(f"\n[bold cyan]🌍 Global Taught Rules ({rules_path}):[/bold cyan]")
+            md_content += f"## 🌍 Global Taught Rules ({rules_path})\n\n"
             with open(rules_path, "r", encoding="utf-8") as f:
                 content = f.read()
                 if content.strip():
-                    from rich.markdown import Markdown
-                    console.print(Markdown(content))
+                    md_content += content + "\n\n---\n\n"
                 else:
-                    console.print("[dim]No global rules have been taught yet (use /teach).[/dim]")
+                    md_content += "*No global rules have been taught yet (use `/teach`).*\n\n---\n\n"
+        
+        if hasattr(session, "action_show_info"):
+            session.action_show_info("🧠 Workspace Memory & Rules", md_content.strip())
+        else:
+            from rich.markdown import Markdown
+            console.print(Markdown(md_content.strip()))
         return True
 
     elif cmd == "/mcp":

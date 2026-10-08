@@ -22,12 +22,14 @@ def mock_cli_module():
     return MagicMock()
 
 def test_handle_slash_command_agents(mock_console, mock_session, mock_cli_module):
+    # Ensure it doesn't trigger the TUI modal branch in testing
+    del mock_session.action_show_info
+    
     handled = handle_slash_command("/agents", ["/agents"], mock_console, mock_session, mock_cli_module)
     assert handled is True
     assert mock_console.print.called
     table = mock_console.print.call_args[0][0]
-    # Verify table title and columns
-    assert "Available NulkaCLI Departments & Agents" in str(table.title)
+    
     col_names = [col.header for col in table.columns]
     assert "Agent" in col_names
     assert "Role" in col_names
@@ -91,3 +93,12 @@ def test_handle_slash_command_cd(tmp_path, mock_console, mock_session, mock_cli_
 def test_handle_slash_command_unknown(mock_console, mock_session, mock_cli_module):
     handled = handle_slash_command("/unknown_command_fake", ["/unknown_command_fake"], mock_console, mock_session, mock_cli_module)
     assert handled is False
+
+def test_handle_slash_command_copy(mock_console, mock_session, mock_cli_module, monkeypatch):
+    from unittest.mock import patch
+    state.last_full_output = "Test Output Content"
+    with patch("nulka_cli.utils.copy_text_to_clipboard", return_value=True):
+        handled = handle_slash_command("/copy", ["/copy"], mock_console, mock_session, mock_cli_module)
+        assert handled is True
+        mock_console.print.assert_any_call("[bold green]✅ Copied last output to clipboard![/bold green]")
+

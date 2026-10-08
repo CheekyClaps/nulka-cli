@@ -16,8 +16,9 @@ from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll, Center
 from textual.reactive import reactive
+from textual.screen import ModalScreen
 from textual.widgets import (
     DirectoryTree,
     Footer,
@@ -29,6 +30,119 @@ from textual.widgets import (
     Static,
 )
 
+class HelpScreen(ModalScreen):
+    """Screen with a dialog for help and keybindings."""
+    
+    BINDINGS = [
+        Binding("escape", "app.pop_screen", "Close Help"),
+    ]
+    
+    CSS = """
+    HelpScreen {
+        align: center middle;
+        background: $background 50%;
+    }
+    
+    #help-dialog {
+        width: 80%;
+        height: 80%;
+        padding: 1 2;
+        border: thick $primary;
+        background: #1e1f29;
+    }
+    
+    #help-dialog-title {
+        text-align: center;
+        text-style: bold;
+        color: #8be9fd;
+        margin-bottom: 1;
+        border-bottom: solid #2a2c37;
+    }
+    """
+    
+    def compose(self) -> ComposeResult:
+        help_text = """
+# NulkaCLI Help
+
+## Keybindings
+- **Ctrl+B**: Toggle Workspace Sidebar
+- **Ctrl+D**: Toggle Action Drawer
+- **Ctrl+Y**: Copy Last Assistant Response to Clipboard
+- **Ctrl+C**: Cancel Action / Copy selected input text
+- **F1**: Show this Help Screen
+- **Esc**: Close this Help Screen
+
+## Copying & Pasting in the TUI
+- **Copy with Mouse**: Hold **Shift** while dragging your mouse, then press `Ctrl+Shift+C` (or right-click -> Copy). This bypasses the TUI's mouse capture.
+- **Copy Last Output**: Press **Ctrl+Y** or type `/copy` to instantly copy the last AI response to your system clipboard.
+- **Click to Copy**: Click on any message card in the chat to copy its text directly to your clipboard.
+- **Paste into Prompt**: Press `Ctrl+V` or `Ctrl+Shift+V` to paste text into the input field.
+
+## Slash Commands
+- `/help` or `/?`: Show help info
+- `/tools`: List available capabilities
+- `/agents`: List specialized AI departments
+- `/clear`: Clear chat screen
+- `/tui` / `/repl`: Switch modes
+- `/quit`: Exit application
+- `/copy`: Copy last output to clipboard
+- `/expand`: View last truncated output in pager
+- `/models`, `/pull`, `/load`: Ollama Model Management
+- `/hrf`, `/trust`, `/doubt`: Manage Hallucination Risk Factor
+
+*(Press ESC to close)*
+        """
+        with Vertical(id="help-dialog"):
+            yield Label("NulkaCLI Help & Commands", id="help-dialog-title")
+            yield Static(Markdown(help_text))
+
+
+from typing import Any
+
+class InfoScreen(ModalScreen):
+    """Generic screen with a dialog for displaying markdown or rich renderable info."""
+    
+    BINDINGS = [
+        Binding("escape", "app.pop_screen", "Close"),
+    ]
+    
+    CSS = """
+    InfoScreen {
+        align: center middle;
+        background: $background 50%;
+    }
+    
+    #info-dialog {
+        width: 80%;
+        height: 80%;
+        padding: 1 2;
+        border: thick $primary;
+        background: #1e1f29;
+    }
+    
+    #info-dialog-title {
+        text-align: center;
+        text-style: bold;
+        color: #8be9fd;
+        margin-bottom: 1;
+        border-bottom: solid #2a2c37;
+    }
+    """
+    
+    def __init__(self, title: str, content: Any, **kwargs):
+        super().__init__(**kwargs)
+        self.title_text = title
+        self.content = content
+        
+    def compose(self) -> ComposeResult:
+        with Vertical(id="info-dialog"):
+            yield Label(self.title_text, id="info-dialog-title")
+            with VerticalScroll():
+                if isinstance(self.content, str):
+                    yield Static(Markdown(self.content))
+                else:
+                    yield Static(self.content)
+
 
 class ChatMessageWidget(Static):
     """Widget displaying a single message card in the chat log."""
@@ -39,18 +153,27 @@ class ChatMessageWidget(Static):
         self.content = content
         self.role = role
 
+    def on_click(self, event) -> None:
+        """Clicking on any message card copies its content to clipboard."""
+        from nulka_cli.utils import copy_text_to_clipboard
+        if self.content:
+            if copy_text_to_clipboard(self.content):
+                self.app.notify("Copied message to clipboard!", title="Clipboard")
+            else:
+                self.app.notify("Failed to copy message", severity="warning")
+
     def compose(self) -> ComposeResult:
         if self.role == "user":
-            header_text = f"✦ [bold cyan]{self.sender}[/bold cyan]"
+            header_text = f"✦ [bold cyan]{self.sender}[/bold cyan] [dim]📋[/dim]"
             border_style = "cyan"
         elif self.role == "agent":
-            header_text = f"🤖 [bold green]{self.sender}[/bold green]"
+            header_text = f"🤖 [bold green]{self.sender}[/bold green] [dim]📋[/dim]"
             border_style = "green"
         elif self.role == "tool":
-            header_text = f"⚙️ [bold yellow]{self.sender}[/bold yellow]"
+            header_text = f"⚙️ [bold yellow]{self.sender}[/bold yellow] [dim]📋[/dim]"
             border_style = "yellow"
         else:
-            header_text = f"ℹ️ [bold magenta]{self.sender}[/bold magenta]"
+            header_text = f"ℹ️ [bold magenta]{self.sender}[/bold magenta] [dim]📋[/dim]"
             border_style = "magenta"
 
         # Try to render markdown if multiline or formatted
@@ -60,6 +183,8 @@ class ChatMessageWidget(Static):
 
 class NulkaApp(App):
     """The main NulkaCLI Textual Application."""
+
+    TITLE = "Nulka-CLI"
 
     CSS = """
     Screen {
@@ -167,22 +292,6 @@ class NulkaApp(App):
         border: solid #282a36;
     }
 
-    #status-bar-container {
-        height: auto;
-        padding: 0 1;
-        background: #181920;
-    }
-
-    #thinking-indicator {
-        display: none;
-        height: 1;
-        color: #f1fa8c;
-    }
-
-    #thinking-indicator.active {
-        display: block;
-    }
-
     #input-container {
         height: 3;
         dock: bottom;
@@ -205,7 +314,9 @@ class NulkaApp(App):
     BINDINGS = [
         Binding("ctrl+b", "toggle_sidebar", "Toggle Sidebar", priority=True),
         Binding("ctrl+d", "toggle_action_drawer", "Toggle Action Drawer", priority=True),
-        Binding("ctrl+c", "cancel_action", "Cancel/Interrupt", priority=True),
+        Binding("ctrl+y", "copy_last_output", "Copy Output", priority=True),
+        Binding("ctrl+c", "cancel_action", "Cancel / Copy", priority=False),
+        Binding("f1", "show_help", "Help", priority=True),
     ]
 
     is_thinking = reactive(False)
@@ -245,10 +356,6 @@ class NulkaApp(App):
                     yield Label("⚡ Live Tool Stream (Action Drawer)", id="action-title")
                     yield RichLog(id="action-log", highlight=True, markup=True)
 
-                # Status / Thinking Indicator
-                with Container(id="status-bar-container"):
-                    yield Label("⏳ Agent thinking...", id="thinking-indicator")
-
                 # Bottom input field
                 with Container(id="input-container"):
                     yield Input(placeholder="Type a message or slash command...", id="user-input")
@@ -258,6 +365,26 @@ class NulkaApp(App):
     def on_mount(self) -> None:
         """Focus the input field on startup."""
         self.query_one("#user-input", Input).focus()
+        self.current_vram_str = ""
+        self.update_subtitle()
+        self.set_interval(5.0, self.poll_vram_status)
+
+    @work(thread=True)
+    def poll_vram_status(self) -> None:
+        from nulka_cli.utils import get_vram_status_string
+        vram_str = get_vram_status_string()
+        def _update():
+            if self.current_vram_str != vram_str:
+                self.current_vram_str = vram_str
+                self.update_subtitle()
+        self.app.call_from_thread(_update)
+
+    def update_subtitle(self) -> None:
+        msg = getattr(self, "_thinking_msg", "Ready") if getattr(self, "is_thinking", False) else "Ready"
+        if getattr(self, "current_vram_str", ""):
+            self.sub_title = f"{msg}  |  {self.current_vram_str}"
+        else:
+            self.sub_title = msg
 
     def action_toggle_sidebar(self) -> None:
         """Toggle workspace sidebar visibility."""
@@ -278,20 +405,40 @@ class NulkaApp(App):
             drawer.remove_class("visible")
 
     def action_cancel_action(self) -> None:
-        """Handle interrupt/cancellation."""
+        """Handle interrupt/cancellation or copy in input."""
+        focused = self.focused
+        if isinstance(focused, Input) and not focused.selection.is_empty:
+            focused.action_copy()
+            return
         self.add_system_message("Action cancelled by user.")
         self.set_thinking(False)
 
+    def action_copy_last_output(self) -> None:
+        """Copy the last agent response to system clipboard."""
+        from nulka_cli.core.state import state
+        from nulka_cli.utils import copy_text_to_clipboard
+
+        if state.last_full_output:
+            if copy_text_to_clipboard(state.last_full_output):
+                self.notify("Copied last response to clipboard!", title="Clipboard")
+            else:
+                self.notify("Failed to copy to clipboard", severity="warning")
+        else:
+            self.notify("No response to copy yet", severity="information")
+
+    def action_show_help(self) -> None:
+        """Show the TUI help screen."""
+        self.push_screen(HelpScreen())
+
+    def action_show_info(self, title: str, content: Any) -> None:
+        """Show a generic TUI info screen with string or rich renderable content."""
+        def _apply():
+            self.push_screen(InfoScreen(title, content))
+        self._dispatch_ui(_apply)
+
     def watch_is_thinking(self, thinking: bool) -> None:
         """React to thinking state change."""
-        try:
-            indicator = self.query_one("#thinking-indicator", Label)
-            if thinking:
-                indicator.add_class("active")
-            else:
-                indicator.remove_class("active")
-        except Exception:
-            pass
+        pass # Using self.sub_title directly in set_thinking now
 
     def _dispatch_ui(self, fn, *args, **kwargs):
         """Helper to safely execute UI mutations on the main thread if called from worker threads."""
@@ -305,11 +452,8 @@ class NulkaApp(App):
         """Update the thinking indicator."""
         def _apply():
             self.is_thinking = thinking
-            try:
-                indicator = self.query_one("#thinking-indicator", Label)
-                indicator.update(message)
-            except Exception:
-                pass
+            self._thinking_msg = message
+            self.update_subtitle()
         self._dispatch_ui(_apply)
 
     def add_user_message(self, content: str) -> None:

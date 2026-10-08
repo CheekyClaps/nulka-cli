@@ -178,6 +178,14 @@ def calculate_hallucination_risk(prompt: str) -> int:
     # 5. Arithmetic / Strict Logic 
     if re.search(r'\b(calculate|multiply|divide|square root)\b', p):
         score += 4
+
+    # 6. Critical VRAM Shortage Penalty (Causes context truncation / garbage output)
+    from nulka_cli.utils import get_vram_usage
+    vram = get_vram_usage()
+    if vram and vram > 0.90:
+        score += 8
+    elif vram and vram > 0.85:
+        score += 4
         
     return min(score, 10)
 
@@ -212,8 +220,30 @@ def should_auto_plan(prompt: str, predefined_route: str | None = None) -> bool:
 
     return False
 
+def scrutinize_prompt(prompt: str) -> dict:
+    # A lightweight LLM scrutinizer could evaluate the user prompt here
+    return {"route": "GENERAL"}
+
 def route_request(prompt: str, predefined_route: str | None = None) -> str:
     """Integrates dynamic HRF evaluation, auto-planning, and routes the request."""
+
+    # Pre-execution VRAM Health Check & Auto-Compression
+    from nulka_cli.utils import get_vram_usage
+    vram = get_vram_usage()
+    if vram and vram > 0.90:
+        console.print(f"[bold red]🚨 CRITICAL VRAM USAGE DETECTED ({int(vram*100)}%).[/bold red]")
+        if len(state.history) >= 2:
+            console.print("[yellow]Auto-compressing session memory to free up context window...[/yellow]")
+            summary = state.compress_history()
+            if summary and not "Error" in summary:
+                console.print("[dim]Memory compressed successfully.[/dim]")
+            else:
+                console.print(f"[dim]Memory compression failed: {summary}[/dim]")
+        
+        # If still critically high, force auto-planning to avoid huge generation spikes
+        if get_vram_usage() > 0.90 and predefined_route != "PLAN":
+            console.print("[bold yellow]⚠️ Memory extremely constrained. Forcing Safe Mode Planning to minimize generation context.[/bold yellow]")
+            return "PLAN"
 
     # 0. Evaluate Hallucination Risk Factor (HRF)
     hrf_score = calculate_hallucination_risk(prompt)
@@ -544,6 +574,8 @@ def execute_crew_workflow(route: str, prompt: str):
     condensed_result = format_condensed_output(result_text)
     console.print(Panel(condensed_result, title=f"[bold white]{title_str}[/]", border_style="green"))
     
+    return result_text
+    
     # Stabilize HRF baseline for the active model after a successful completion
     active_model = get_active_model_name()
     hrf_manager.stabilize(active_model)
@@ -640,29 +672,27 @@ def execute_expand_pager():
         console.print(state.last_full_output)
 
 def show_ollama_models():
-    """Renders a beautiful table of installed and loaded models."""
+    """Returns a nicely padded Rich Table of installed and loaded models."""
     if not is_ollama_running():
-        console.print("[bold red]❌ Ollama is not running.[/]")
-        return
-        
-    with console.status("[bold yellow]📥 Fetching model statuses from Ollama daemon...[/]"):
-        local = get_local_models()
-        loaded = get_loaded_models()
-        
-    table = Table(title="🦙 Ollama Local Model Hub", header_style="bold magenta", border_style="cyan")
+        return "❌ Ollama is not running."
+
+    local = get_local_models()
+    loaded = get_loaded_models()
+
+    if not local:
+        return "*No models found.*"
+
+    from rich import box
+    table = Table(box=box.ROUNDED, show_lines=True, padding=(0, 2))
     table.add_column("Model Name", style="bold white")
     table.add_column("Status", justify="center")
-    
-    if not local:
-        table.add_row("[italic yellow]No models found[/]", "")
-    else:
-        for model in local:
-            # Match model name cleanly (e.g. qwen2.5-coder:latest vs qwen2.5-coder)
-            is_active = any(model in l or l in model for l in loaded)
-            status_text = "[bold green]ACTIVE (Loaded)[/]" if is_active else "[dim]IDLE (Cached)[/]"
-            table.add_row(model, status_text)
-            
-    console.print(table)
+
+    for model in local:
+        is_active = any(model in l or l in model for l in loaded)
+        status_text = "[bold green]ACTIVE (Loaded)[/]" if is_active else "[dim]IDLE (Cached)[/]"
+        table.add_row(model, status_text)
+
+    return table
 
 def pull_ollama_model(model_name: str):
     """Pulls a new model via Ollama native progress indicator."""
@@ -1011,14 +1041,24 @@ def run_tui_cli(workspace_dir: str | None = None):
                 elif cmd == "/clear":
                     app_instance.clear_chat()
                     return
+                elif cmd in ["/help", "/?", "/commands"]:
+                    app_instance.call_from_thread(app_instance.action_show_help)
+                    return
 
                 from nulka_cli.ui.slash_commands import handle_slash_command
 
                 # Capture console output from slash commands to display inside TUI
                 capture_buffer = StringIO()
                 capture_console = Console(file=capture_buffer, force_terminal=True, width=80)
+                
+                # Temporarily override global console to capture outputs from cli.py functions
+                original_console = sys.modules[__name__].console
+                sys.modules[__name__].console = capture_console
+                try:
+                    handled = handle_slash_command(cmd, parts, capture_console, app_instance, sys.modules[__name__])
+                finally:
+                    sys.modules[__name__].console = original_console
 
-                handled = handle_slash_command(cmd, parts, capture_console, None, sys.modules[__name__])
                 captured_text = capture_buffer.getvalue().strip()
                 if captured_output := captured_text:
                     app_instance.add_system_message(captured_output)

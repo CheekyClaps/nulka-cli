@@ -333,3 +333,95 @@ def get_best_available_model() -> str:
 local_model_name = get_best_available_model()
 ollama_llm = Ollama(model=local_model_name, base_url="http://localhost:11434")
 
+
+def copy_text_to_clipboard(text: str) -> bool:
+    """Robust cross-platform clipboard copy function.
+    Supports wl-copy (Wayland), xsel/xclip (X11), pbcopy (macOS), and pyperclip.
+    """
+    import shutil
+    import subprocess
+
+    # 1. Wayland clipboard
+    if shutil.which("wl-copy"):
+        try:
+            subprocess.run(["wl-copy"], input=text.encode("utf-8"), check=True, timeout=2)
+            return True
+        except Exception:
+            pass
+
+    # 2. X11 clipboard via xsel
+    if shutil.which("xsel"):
+        try:
+            subprocess.run(["xsel", "-b", "-i"], input=text.encode("utf-8"), check=True, timeout=2)
+            return True
+        except Exception:
+            pass
+
+    # 3. X11 clipboard via xclip
+    if shutil.which("xclip"):
+        try:
+            subprocess.run(["xclip", "-selection", "clipboard"], input=text.encode("utf-8"), check=True, timeout=2)
+            return True
+        except Exception:
+            pass
+
+    # 4. macOS clipboard
+    if shutil.which("pbcopy"):
+        try:
+            subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=True, timeout=2)
+            return True
+        except Exception:
+            pass
+
+    # 5. Fallback to pyperclip if installed
+    try:
+        import pyperclip
+        pyperclip.copy(text)
+        return True
+    except Exception:
+        pass
+
+    return False
+
+
+def get_vram_usage() -> float | None:
+    """Returns VRAM usage as a float between 0.0 and 1.0. Supports AMD (rocm-smi) and NVIDIA (nvidia-smi)."""
+    import subprocess
+    import json
+    
+    # Try AMD
+    try:
+        res = subprocess.run(['rocm-smi', '--showmeminfo', 'vram', '--json'], capture_output=True, text=True, timeout=1)
+        if res.returncode == 0:
+            data = json.loads(res.stdout)
+            for gpu in data.values():
+                total = int(gpu.get('VRAM Total Memory (B)', 0))
+                used = int(gpu.get('VRAM Total Used Memory (B)', 0))
+                if total > 0:
+                    return used / total
+    except Exception:
+        pass
+        
+    # Try NVIDIA
+    try:
+        res = subprocess.run(['nvidia-smi', '--query-gpu=memory.used,memory.total', '--format=csv,noheader,nounits'], capture_output=True, text=True, timeout=1)
+        if res.returncode == 0:
+            parts = res.stdout.strip().split('\n')[0].split(',')
+            used = int(parts[0].strip())
+            total = int(parts[1].strip())
+            if total > 0:
+                return used / total
+    except Exception:
+        pass
+        
+    return None
+
+def get_vram_status_string() -> str:
+    """Returns a formatted string like 'VRAM: 85%' or empty if unavailable."""
+    usage = get_vram_usage()
+    if usage is not None:
+        pct = int(usage * 100)
+        return f"VRAM: {pct}%"
+    return ""
+
+
