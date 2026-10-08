@@ -1,6 +1,8 @@
 import os
 import sys
 
+from rich.markup import escape
+
 from nulka_cli.core.state import state
 from nulka_cli.hrf_manager import hrf_manager
 
@@ -149,7 +151,6 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
                 console.print(f"❌ Failed to change directory: {e}", style="bold red", markup=False)
         return True
     elif cmd == "/pwd":
-        from rich.markup import escape
         console.print(f"📂 [bold]Current Working Directory:[/bold] [cyan]{escape(os.getcwd())}[/cyan]")
         return True
     elif cmd in ["/ls", "/list"]:
