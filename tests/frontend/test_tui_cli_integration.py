@@ -45,3 +45,31 @@ def test_main_single_query_headless(monkeypatch):
 
     main.main()
     assert received_query == "test single query"
+
+def test_tui_on_submit_slash_command_no_sys_error(tmp_path, monkeypatch):
+    """Verify that submitting /init via on_submit in run_tui_cli executes without UnboundLocalError 'sys'."""
+    import asyncio
+
+    captured_app = None
+
+    class MockApp(NulkaApp):
+        def run(self):
+            nonlocal captured_app
+            captured_app = self
+            return None
+
+    monkeypatch.setattr("nulka_cli.ui.tui_app.NulkaApp", MockApp)
+    run_tui_cli(workspace_dir=str(tmp_path))
+
+    assert captured_app is not None
+    callback = captured_app.on_submit_callback
+
+    async def _test():
+        real_app = NulkaApp(workspace_dir=str(tmp_path))
+        async with real_app.run_test() as pilot:
+            # Call on_submit with /init on a mounted app - should not raise UnboundLocalError
+            callback("/init", real_app)
+            await pilot.pause()
+
+    asyncio.run(_test())
+

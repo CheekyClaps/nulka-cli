@@ -34,6 +34,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
+            "nulka=nulka_cli.main:main",
             "nulka-cli=nulka_cli.main:main",
             "nulka_cli=nulka_cli.main:main",
         ],

@@ -70,6 +70,8 @@ class HelpScreen(ModalScreen):
 ## Keybindings
 - **Ctrl+B**: Toggle Workspace Sidebar
 - **Ctrl+D**: Toggle Action Drawer
+- **Ctrl+T**: Toggle Thought Drawer
+- **Ctrl+L**: View Logs in Fullscreen Modal
 - **Ctrl+Y**: Copy Last Assistant Response to Clipboard
 - **Ctrl+C**: Cancel Action / Copy selected input text
 - **F1**: Show this Help Screen
@@ -77,6 +79,7 @@ class HelpScreen(ModalScreen):
 
 ## Copying & Pasting in the TUI
 - **Copy with Mouse**: Hold **Shift** while dragging your mouse, then press `Ctrl+Shift+C` (or right-click -> Copy). This bypasses the TUI's mouse capture.
+- **Copy Stream Logs**: Type `/copy_log` or press **Ctrl+L** to open the logs viewer where all stream logs can be viewed and copied.
 - **Copy Last Output**: Press **Ctrl+Y** or type `/copy` to instantly copy the last AI response to your system clipboard.
 - **Click to Copy**: Click on any message card in the chat to copy its text directly to your clipboard.
 - **Paste into Prompt**: Press `Ctrl+V` or `Ctrl+Shift+V` to paste text into the input field.
@@ -89,6 +92,7 @@ class HelpScreen(ModalScreen):
 - `/tui` / `/repl`: Switch modes
 - `/quit`: Exit application
 - `/copy`: Copy last output to clipboard
+- `/copy_log`: Copy full stream logs to clipboard
 - `/expand`: View last truncated output in pager
 - `/models`, `/pull`, `/load`: Ollama Model Management
 - `/hrf`, `/trust`, `/doubt`: Manage Hallucination Risk Factor
@@ -147,11 +151,48 @@ class InfoScreen(ModalScreen):
                     yield Static(self.content)
 
 
+class LogTextArea(TextArea):
+    """Selectable TextArea optimized for streaming logs with auto-tail and scroll detach."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.auto_scroll = True
+
+    def on_mount(self) -> None:
+        def _tail():
+            self.scroll_end(animate=False)
+            self.auto_scroll = True
+        self.call_after_refresh(_tail)
+
+    def watch_scroll_y(self, old_value: float, new_value: float) -> None:
+        super().watch_scroll_y(old_value, new_value)
+        # Detach if user scrolled away from the bottom; re-attach if back at bottom
+        if not self.is_vertical_scroll_end:
+            self.auto_scroll = False
+        else:
+            self.auto_scroll = True
+
+    def append_log(self, text: str) -> None:
+        """Appends log text, auto-scrolling if attached, or preserving scroll if detached."""
+        saved_scroll = self.scroll_y
+        was_at_end = self.auto_scroll
+        if self.text in ("No action logs recorded yet.", "No model thoughts recorded yet."):
+            self.load_text(text)
+        else:
+            self.load_text(self.text + text)
+
+        if was_at_end:
+            self.scroll_end(animate=False)
+        else:
+            self.scroll_to(y=saved_scroll, animate=False)
+
+
 class LogsScreen(ModalScreen):
     """Screen containing selectable TextAreas for Action and Thought logs."""
     
     BINDINGS = [
         Binding("escape", "app.pop_screen", "Close"),
+        Binding("end", "scroll_tail", "Jump to Tail", priority=True),
     ]
     
     CSS = """
@@ -176,7 +217,7 @@ class LogsScreen(ModalScreen):
         border-bottom: solid #2a2c37;
     }
     
-    TextArea {
+    LogTextArea {
         height: 1fr;
     }
     """
@@ -189,11 +230,49 @@ class LogsScreen(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical(id="logs-dialog"):
             yield Label("Stream Logs", id="logs-dialog-title")
-            with TabbedContent():
-                with TabPane("Action Stream"):
-                    yield TextArea(text=self.action_log_text or "No action logs recorded yet.", read_only=True)
-                with TabPane("Model Thoughts"):
-                    yield TextArea(text=self.thought_log_text or "No model thoughts recorded yet.", read_only=True)
+            with TabbedContent(id="logs-tabs"):
+                with TabPane("Action Stream", id="tab-action"):
+                    yield LogTextArea(text=self.action_log_text or "No action logs recorded yet.", read_only=True, id="action-log-area")
+                with TabPane("Model Thoughts", id="tab-thought"):
+                    yield LogTextArea(text=self.thought_log_text or "No model thoughts recorded yet.", read_only=True, id="thought-log-area")
+
+    def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        """When switching tabs, ensure the activated tab scrolls to tail if auto-scroll is on."""
+        def _tail_tab():
+            for area_id in ["#action-log-area", "#thought-log-area"]:
+                try:
+                    area = self.query_one(area_id, LogTextArea)
+                    if area.auto_scroll:
+                        area.scroll_end(animate=False)
+                except Exception:
+                    pass
+        self.call_after_refresh(_tail_tab)
+
+    def action_scroll_tail(self) -> None:
+        """Manually jump to the bottom and re-attach auto-scroll."""
+        for area_id in ["#action-log-area", "#thought-log-area"]:
+            try:
+                area = self.query_one(area_id, LogTextArea)
+                area.scroll_end(animate=False)
+                area.auto_scroll = True
+            except Exception:
+                pass
+
+    def append_action(self, line: str) -> None:
+        try:
+            import re
+            clean_line = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', line)
+            self.query_one("#action-log-area", LogTextArea).append_log(clean_line + "\n")
+        except Exception:
+            pass
+
+    def append_thought(self, line: str) -> None:
+        try:
+            import re
+            clean_line = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', line)
+            self.query_one("#thought-log-area", LogTextArea).append_log(clean_line + "\n")
+        except Exception:
+            pass
 
 
 class NavigableDirectoryTree(DirectoryTree):
@@ -210,7 +289,7 @@ class NavigableDirectoryTree(DirectoryTree):
         if parent and parent != str(self.path):
             self.path = parent
 
-class ChatMessageWidget(Static):
+class ChatMessageWidget(Container):
     """Widget displaying a single message card in the chat log."""
 
     def __init__(self, sender: str, content: str, role: str = "user", **kwargs):
@@ -225,7 +304,16 @@ class ChatMessageWidget(Static):
         from rich.text import Text
         if self.content:
             plain_text = Text.from_ansi(self.content).plain
-            copy_text_to_clipboard(plain_text)
+            if copy_text_to_clipboard(plain_text):
+                try:
+                    self.app.notify("Copied to clipboard!", title=self.sender, timeout=2)
+                except Exception:
+                    pass
+            else:
+                try:
+                    self.app.notify("Clipboard unavailable (install wl-copy or xclip)", severity="warning", timeout=3)
+                except Exception:
+                    pass
 
     def compose(self) -> ComposeResult:
         if self.role == "user":
@@ -580,12 +668,26 @@ class NulkaApp(App):
         self.set_thinking(False)
 
     def action_copy_last_output(self) -> None:
-        """Copy the last agent response to system clipboard."""
+        """Copy the last agent or system response to system clipboard."""
         from nulka_cli.core.state import state
         from nulka_cli.utils import copy_text_to_clipboard
 
         if state.last_full_output:
-            copy_text_to_clipboard(state.last_full_output)
+            if copy_text_to_clipboard(state.last_full_output):
+                try:
+                    self.notify("Copied last output to clipboard!", title="Clipboard", timeout=2)
+                except Exception:
+                    pass
+            else:
+                try:
+                    self.notify("Clipboard tool not found (install wl-copy or xclip)", severity="warning", timeout=3)
+                except Exception:
+                    pass
+        else:
+            try:
+                self.notify("No recent output to copy", severity="information", timeout=2)
+            except Exception:
+                pass
 
     def action_show_help(self) -> None:
         """Show the TUI help screen."""
@@ -628,6 +730,10 @@ class NulkaApp(App):
 
     def add_agent_message(self, sender: str, content: str) -> None:
         """Append an agent message to the chat view."""
+        from nulka_cli.core.state import state
+        from rich.text import Text
+        if content:
+            state.last_full_output = Text.from_ansi(content).plain
         def _apply():
             chat_scroll = self.query_one("#chat-scroll", VerticalScroll)
             widget = ChatMessageWidget(sender, content, role="agent", classes="agent")
@@ -637,6 +743,10 @@ class NulkaApp(App):
 
     def add_tool_summary(self, title: str, summary: str) -> None:
         """Append a condensed tool execution chip/card to the chat view."""
+        from nulka_cli.core.state import state
+        from rich.text import Text
+        if summary:
+            state.last_full_output = Text.from_ansi(summary).plain
         def _apply():
             chat_scroll = self.query_one("#chat-scroll", VerticalScroll)
             widget = ChatMessageWidget(title, summary, role="tool", classes="tool-summary")
@@ -646,6 +756,10 @@ class NulkaApp(App):
 
     def add_system_message(self, content: str) -> None:
         """Append a system notification."""
+        from nulka_cli.core.state import state
+        from rich.text import Text
+        if content:
+            state.last_full_output = Text.from_ansi(content).plain
         def _apply():
             chat_scroll = self.query_one("#chat-scroll", VerticalScroll)
             widget = ChatMessageWidget("System", content, role="system")
@@ -661,6 +775,8 @@ class NulkaApp(App):
                 self.action_toggle_action_drawer()
             action_log = self.query_one("#action-log", RichLog)
             action_log.write(line)
+            if isinstance(self.screen, LogsScreen):
+                self.screen.append_action(line)
         self._dispatch_ui(_apply)
         
     def stream_thought(self, line: str, open_drawer: bool = False) -> None:
@@ -671,6 +787,8 @@ class NulkaApp(App):
                 self.action_toggle_thought_drawer()
             thought_log = self.query_one("#thought-log", RichLog)
             thought_log.write(line)
+            if isinstance(self.screen, LogsScreen):
+                self.screen.append_thought(line)
         self._dispatch_ui(_apply)
 
     def clear_chat(self) -> None:

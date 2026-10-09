@@ -224,7 +224,8 @@ class SmartEditTool(BaseTool):
             )
             
             chain = prompt | ollama_llm
-            response = chain.invoke({"instruction": instruction, "content": content})
+            response_obj = chain.invoke({"instruction": instruction, "content": content})
+            response = response_obj.content if hasattr(response_obj, 'content') else str(response_obj)
             
             # Strip reasoning tags before extracting code blocks
             response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()

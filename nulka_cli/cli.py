@@ -94,6 +94,15 @@ def analyze_prompt_intent(prompt: str) -> dict:
     Uses the General Assistant LLM to evaluate the prompt for BOTH missing context (scrutiny) 
     and task categorization (routing) in a single, intelligent step.
     """
+    cwd = state.get_workspace_dir() or os.getcwd()
+    env_context = f"Current Working Directory / Workspace: {cwd}\n"
+    try:
+        entries = sorted(os.listdir(cwd))[:10]
+        if entries:
+            env_context += f"Workspace items: {', '.join(entries)}\n"
+    except Exception:
+        pass
+
     history_context = ""
     if state.history:
         recent = state.history[-2:]
@@ -110,17 +119,22 @@ def analyze_prompt_intent(prompt: str) -> dict:
     system_prompt = (
         "You are the NulkaCLI Lead Coordinator.\n"
         "Your job is to read the user's prompt (and history) and perform two tasks:\n\n"
+        "ENVIRONMENTAL CONTEXT:\n"
+        f"{env_context}\n"
         "TASK 1 - SCRUTINY:\n"
-        "Determine if the prompt is missing critical context (e.g., they ask to edit a file but don't name the file). "
-        "If it is impossible to proceed, write a clarification question. If you CAN proceed (or if it's a general question), output 'PROCEED'. "
-        "IMPORTANT: If the user says something conversational like 'let go again', 'lets pick up where we left off', or 'continue', you MUST output 'PROCEED' because the General Assistant knows how to handle these automatically based on its learned rules.\n\n"
+        "Evaluate if the prompt can proceed. Output 'PROCEED' unless the request is fundamentally impossible to start.\n"
+        "CRITICAL RULES FOR SCRUTINY:\n"
+        "- All agents have directory and file exploration tools (read_file, list_directory, glob, grep_search). If the user mentions a directory, path, or asks to inspect, analyze, or read files in the workspace or an indicated location, you MUST output 'PROCEED'. Do NOT ask the user to confirm or specify the directory; the agents will locate and read the files using their tools.\n"
+        "- If the user says conversational phrases like 'let go again', 'lets pick up where we left off', or 'continue', output 'PROCEED'.\n"
+        "- Only output a clarification question if the prompt is totally nonsensical or critically missing information that tools cannot discover.\n"
+        "- When in doubt, ALWAYS output 'PROCEED'.\n\n"
         "TASK 2 - ROUTING:\n"
         "Assign the request to EXACTLY ONE of these versatile archetypes based on the intent:\n"
         "- STRATEGIST: Planning, structural design, architecture, defining roadmaps, breaking down complex tasks, OR evaluating/diagnosing open-ended system performance & optimization inquiries (e.g., 'is my server/LLM optimized?', 'how can I improve performance?', 'evaluate my setup').\n"
         "- CREATOR: Modifying existing files, changing specific lines of code, writing code, generating documents, writing essays, creating configuration files, building features, OR explicitly executing/continuing an agreed-upon plan (e.g., 'continue with the plan', 'proceed', 'do it').\n"
         "- AUDITOR: Reviewing work, QA testing, searching for secrets/vulnerabilities, verifying compliance, or factual fact-checking.\n"
         "- OPS: Executing concrete, direct operating system operations and shell commands (e.g., starting/stopping a service, running build/test scripts, checking a specific process or port, installing packages). NOT for broad evaluation or open-ended inquiries like 'is my system optimized?'.\n"
-        "- ANALYST: Researching topics online, parsing structured data, summarizing large information sets, or extracting intelligence.\n"
+        "- ANALYST: Researching topics online, parsing structured data, summarizing large information sets, analyzing security scan outputs (e.g. linpeas, nmap), or extracting intelligence.\n"
         "- GENERAL: Answering questions, providing examples, explaining concepts, or general conversational chats where the user just wants information, NOT execution or file modification.\n\n"
         "OUTPUT FORMAT (You must output exactly these two lines):\n"
         "SCRUTINY: [Your question or PROCEED]\n"
@@ -135,7 +149,9 @@ def analyze_prompt_intent(prompt: str) -> dict:
     }
     
     try:
-        response = ollama_llm.invoke(system_prompt).strip()
+        raw_response = ollama_llm.invoke(system_prompt)
+        response = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
+        response = response.strip()
         lines = response.split('\n')
         for line in lines:
             line = line.strip()
@@ -314,7 +330,8 @@ def execute_crew_workflow(route: str, prompt: str):
             HumanMessage(content=prompt)
         ]
         res = ollama_fast_llm.invoke(messages)
-        result_text = res.strip()
+        res_text = res.content if hasattr(res, 'content') else str(res)
+        result_text = res_text.strip()
         end_time = time.time()
         state.last_execution_time = end_time - start_time
         
@@ -1070,6 +1087,7 @@ def run_tui_cli(workspace_dir: str | None = None):
     DEBUG_MODE = True  # Always enable agent verbosity in TUI because stdout is redirected to ThoughtStreamer
 
     def on_submit(user_input: str, app_instance: NulkaApp):
+        import sys
         state.set_stream_listener(app_instance.stream_action)
         state.set_thought_stream_listener(app_instance.stream_thought)
         try:
@@ -1118,7 +1136,10 @@ def run_tui_cli(workspace_dir: str | None = None):
             state.stream_line(f"🎯 Router categorized intent as: [bold cyan]{proposed_route}[/] (Scrutiny: {scrutiny_result})")
 
             if scrutiny_result != "PROCEED":
-                app_instance.add_agent_message("ROUTER", f"**Clarification Needed:**\n{scrutiny_result}")
+                clarification_msg = f"**Clarification Needed:**\n{scrutiny_result}"
+                state.last_full_output = clarification_msg
+                state.append_interaction(user_input, "ROUTER", clarification_msg)
+                app_instance.add_agent_message("ROUTER", clarification_msg)
                 return
 
             # 2. Finalize Route (HRF + Auto-Planning)
@@ -1127,7 +1148,6 @@ def run_tui_cli(workspace_dir: str | None = None):
             app_instance.set_thinking(True, f"⏳ Executing workflow via {route}...")
 
             # 3. Execute
-            import sys
             class ThoughtStreamer:
                 def __init__(self, original_stdout):
                     self.original_stdout = original_stdout

@@ -102,3 +102,19 @@ def test_handle_slash_command_copy(mock_console, mock_session, mock_cli_module, 
         assert handled is True
         mock_console.print.assert_any_call("[bold green]✅ Copied last output to clipboard![/bold green]")
 
+def test_handle_slash_command_copy_log(mock_console, mock_session, mock_cli_module):
+    from unittest.mock import patch
+    mock_session.action_log_buffer = "Action log step 1"
+    mock_session.thought_log_buffer = "Model thinking step 1"
+    with patch("nulka_cli.utils.copy_text_to_clipboard", return_value=True) as mock_copy:
+        handled = handle_slash_command("/copy_log", ["/copy_log"], mock_console, mock_session, mock_cli_module)
+        assert handled is True
+        assert mock_copy.called
+        copied_text = mock_copy.call_args[0][0]
+        assert "=== ACTION STREAM ===" in copied_text
+        assert "Action log step 1" in copied_text
+        assert "=== MODEL THOUGHTS ===" in copied_text
+        assert "Model thinking step 1" in copied_text
+        mock_console.print.assert_any_call("[bold green]✅ Copied stream logs to clipboard![/bold green]")
+
+

@@ -147,7 +147,8 @@ class SessionState:
             )
             
             chain = prompt | ollama_llm
-            summary = chain.invoke({"history": history_text}).strip()
+            res = chain.invoke({"history": history_text})
+            summary = (res.content if hasattr(res, 'content') else str(res)).strip()
             
             self.history = [{
                 "prompt": "Context Summary of previous session.",
