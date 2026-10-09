@@ -270,6 +270,7 @@ def start_ollama_server():
         # We redirect stdout/stderr to devnull to prevent blocking or terminal spam
         subprocess.Popen(
             ["ollama", "serve"],
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             close_fds=True
@@ -355,8 +356,8 @@ local_model_name = get_best_available_model()
 fast_model_name = get_fast_model()
 
 # Use a larger context window to avoid 4096 default limit crashes on large file reads (e.g. linpeas)
-# Can be overridden by the user via environment variable.
-ollama_num_ctx = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
+# Can be overridden by the user via environment variable. 8192 is a safe default for 16GB GPUs.
+ollama_num_ctx = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 
 ollama_llm = ChatOllama(
     model=local_model_name, 
