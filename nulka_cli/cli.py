@@ -298,8 +298,19 @@ def execute_crew_workflow(route: str, prompt: str):
         console.print("[dim]⚡ Using Fast-Lane direct LLM response...[/dim]")
         from nulka_cli.utils import ollama_fast_llm
         from langchain.schema import HumanMessage, SystemMessage
+        
+        history_str = ""
+        if state.history:
+            recent = state.history[-2:]
+            for h in recent:
+                history_str += f"User: {h.get('prompt')}\nAgent: {h.get('output')}\n"
+                
+        sys_msg = "You are NulkaCLI's fast-lane conversational assistant. Give a very brief, friendly response without using any tools."
+        if history_str:
+            sys_msg += f"\n\nContext:\n{history_str}"
+            
         messages = [
-            SystemMessage(content="You are NulkaCLI's fast-lane conversational assistant. Give a very brief, friendly response without using any tools."),
+            SystemMessage(content=sys_msg),
             HumanMessage(content=prompt)
         ]
         res = ollama_fast_llm.invoke(messages)
@@ -307,6 +318,7 @@ def execute_crew_workflow(route: str, prompt: str):
         end_time = time.time()
         state.last_execution_time = end_time - start_time
         
+        state.append_interaction(prompt, route, result_text)
         state.last_full_output = result_text
         condensed_result = format_condensed_output(result_text)
         from rich.panel import Panel
@@ -350,6 +362,12 @@ def execute_crew_workflow(route: str, prompt: str):
                 f"3. If the user asks to read, use, or analyze actual workspace files (e.g., Markdown files, Python files), read those actual files directly using their respective paths. Do NOT read '{cache_path}' in those cases.\n"
                 f"-----------------------------------------\n\n"
             )
+            
+    if state.file_cache:
+        history_context += "--- RECENTLY ACCESSED WORKSPACE FILES (SHARED CACHE) ---\n"
+        for fpath, fcontent in state.file_cache.items():
+            history_context += f"File: {fpath}\n```\n{fcontent}\n```\n\n"
+        history_context += "--------------------------------------------------------\n\n"
         
     full_prompt_with_history = f"{history_context}Current Request: '{prompt}'"
 
@@ -1048,9 +1066,12 @@ def run_tui_cli(workspace_dir: str | None = None):
     # Configure state for TUI execution
     state.tui_mode = True
     state.auto_approve = True
+    global DEBUG_MODE
+    DEBUG_MODE = True  # Always enable agent verbosity in TUI because stdout is redirected to ThoughtStreamer
 
     def on_submit(user_input: str, app_instance: NulkaApp):
         state.set_stream_listener(app_instance.stream_action)
+        state.set_thought_stream_listener(app_instance.stream_thought)
         try:
             # Check for slash commands
             if user_input.startswith("/"):
@@ -1088,10 +1109,13 @@ def run_tui_cli(workspace_dir: str | None = None):
                     app_instance.add_system_message(f"❌ Unknown command: {cmd}. Type /help for assistance.")
                 return
 
+            state.stream_line("[bold cyan]🔎 [Lead Coordinator] Analyzing intent & context...[/]")
             # 1. Analyze Intent (Scrutiny + Routing in one pass)
             analysis = analyze_prompt_intent(user_input)
             scrutiny_result = analysis.get("scrutiny", "PROCEED")
             proposed_route = analysis.get("route", "GENERAL")
+
+            state.stream_line(f"🎯 Router categorized intent as: [bold cyan]{proposed_route}[/] (Scrutiny: {scrutiny_result})")
 
             if scrutiny_result != "PROCEED":
                 app_instance.add_agent_message("ROUTER", f"**Clarification Needed:**\n{scrutiny_result}")
@@ -1099,15 +1123,34 @@ def run_tui_cli(workspace_dir: str | None = None):
 
             # 2. Finalize Route (HRF + Auto-Planning)
             route = route_request(user_input, predefined_route=proposed_route)
+            state.stream_line(f"🚀 Finalized workflow route: [bold green]{route}[/]")
             app_instance.set_thinking(True, f"⏳ Executing workflow via {route}...")
 
             # 3. Execute
-            result = execute_crew_workflow(route, user_input)
-            app_instance.add_agent_message(route, str(result))
+            import sys
+            class ThoughtStreamer:
+                def __init__(self, original_stdout):
+                    self.original_stdout = original_stdout
+                def write(self, s):
+                    # We send non-empty strings to thought stream
+                    if s.strip():
+                        state.stream_thought(s.rstrip("\n"))
+                def flush(self):
+                    pass
+
+            original_stdout = sys.stdout
+            sys.stdout = ThoughtStreamer(original_stdout)
+            try:
+                result = execute_crew_workflow(route, user_input)
+                app_instance.add_agent_message(route, str(result))
+            finally:
+                sys.stdout = original_stdout
+                
         except Exception as e:
             app_instance.add_system_message(f"Execution Error: {e}")
         finally:
             state.set_stream_listener(None)
+            state.set_thought_stream_listener(None)
 
     app = NulkaApp(workspace_dir=workspace_dir or os.getcwd(), on_submit_callback=on_submit)
     try:

@@ -243,7 +243,8 @@ def instantiate_agents(custom_tools=None):
             allow_delegation=allow_delegation,
             tools=agent_tools,
             llm=agent_llm,
-            max_iter=5  # Hard cap iterations to prevent infinite looping
+            max_iter=30,  # Increased cap to allow for multi-document research
+            max_execution_time=600 # 10 minute timeout
         )
         
     return agents

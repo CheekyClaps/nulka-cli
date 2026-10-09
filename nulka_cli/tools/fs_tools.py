@@ -65,6 +65,10 @@ class ReadFileTool(BaseTool):
 
             content = "".join(lines[start:end])
 
+            # Cache the file in shared memory for conversational access
+            if not truncated:
+                state.update_file_cache(file_path, content)
+
             result = f"<untrusted_context>\n{content}\n</untrusted_context>"
 
             if truncated:
@@ -98,6 +102,15 @@ class WriteFileTool(BaseTool):
         if not content:
             state.stream_line("[bold red]❌ Error: Empty content provided.[/]")
             return "Error: You must provide the 'content' argument containing the file data."
+
+        # Sanitize reasoning tags (<think>...</think>) common in newer reasoning models
+        content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+
+        # Strip outer markdown code block if LLM wrapped the entire file in backticks
+        block_match = re.fullmatch(r'```[a-zA-Z0-9_\-]*\n(.*?)```', content.strip(), re.DOTALL)
+        if block_match:
+            content = block_match.group(1)
+            
         try:
             file_path = os.path.expanduser(file_path)
             print_bypass(f"\n\033[93m⚠️  Agent attempting to WRITE to: {file_path}\033[0m")
@@ -161,6 +174,8 @@ class WriteFileTool(BaseTool):
             os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
+                
+            state.update_file_cache(file_path, content)
             
             if make_exec:
                 os.chmod(file_path, 0o755)
@@ -211,6 +226,9 @@ class SmartEditTool(BaseTool):
             chain = prompt | ollama_llm
             response = chain.invoke({"instruction": instruction, "content": content})
             
+            # Strip reasoning tags before extracting code blocks
+            response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
+
             # Extract content from markdown block if present
             new_content = response
             block_match = re.search(r'```[a-zA-Z]*\n(.*?)```', response, re.DOTALL)
@@ -268,6 +286,8 @@ class SmartEditTool(BaseTool):
             
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(new_content)
+                
+            state.update_file_cache(file_path, new_content)
                 
             return f"Successfully applied smart edit to {file_path} (Timestamped backup saved)"
         except Exception as e:
@@ -346,6 +366,8 @@ class SearchReplaceTool(BaseTool):
 
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(modified_content)
+                
+            state.update_file_cache(file_path, modified_content)
 
             return f"Successfully replaced text in {file_path} (Backup saved as .bak)"
         except Exception as e:

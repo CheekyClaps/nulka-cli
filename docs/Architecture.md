@@ -18,11 +18,25 @@ NulkaCLI operates primarily via **Ollama** running locally on the host machine t
 
 To solve this, NulkaCLI features a `Universal Oracle`. During the onboarding wizard, the system detects your installed CLI AI tools (like `gemini`, `claude`, or `chatgpt`) and exposes them as a fallback tool. If the local agents get stuck, they query the Oracle.
 
-## Smart Edit Interpretation Layer
+## Smart Edit & Surgical File Operations
 Traditional autonomous agents struggle with writing exact literal strings to replace code, often resulting in lazy placeholders (`... rest of code ...`). NulkaCLI solves this by decoupling reasoning from editing:
-* The agent invokes the `SmartEditTool` with a target file and a natural language instruction.
-* A specialized background LLM prompt acts as a pure "Interpretation Layer", outputting the complete, modified file block.
+* **`search_replace`**: Fast, token-efficient exact literal string replacement for surgical updates without model hallucinations.
+* **`smart_edit`**: A specialized background LLM prompt acts as a pure "Interpretation Layer", outputting the complete, modified file block while stripping reasoning tags (`<think>`).
 * Timestamped `.bak` files are automatically generated before any changes are committed to the filesystem, easily revertible via `/rewind`.
+
+## Shared Memory File Cache (The Blackboard)
+When specialists (e.g. `Analyst`, `Creator`) inspect or modify files in the workspace, the contents (under 8KB) are automatically captured into an in-memory `file_cache`. 
+* On the next conversational turn, this working cache is directly embedded into the context prompt.
+* This allows the `General Assistant` to discuss or summarize documents just created by specialists without wasting turns spinning up redundant `read_file` tool calls.
+
+## Modern Textual Terminal UI (TUI)
+NulkaCLI launches by default into an asynchronous, non-blocking **Textual** terminal application (`nulka_cli`):
+* **Workspace Sidebar (`Ctrl+B`)**: A custom `NavigableDirectoryTree` starting at the active workspace directory, supporting Vim-style navigation (`h` / `Backspace` to step up). Starts collapsed by default for maximum terminal real estate.
+* **Live Action Drawer (`Ctrl+D`)**: Streams real-time tool and pseudo-terminal executions (POSIX PTY) with ANSI color preservation.
+* **Model Thought Drawer (`Ctrl+T`)**: Streams real-time internal reasoning and verbosity from the active LLM crew.
+* **Selectable Stream Logs Modal (`Ctrl+L`)**: Opens a full-screen, tabbed modal with native `TextArea`s to easily select and copy from both the Action Stream and Thought Stream buffers.
+* **Silent Clipboard (`Ctrl+Y`)**: Seamlessly copies the latest response without intrusive popups.
+* Classic terminal REPL mode remains accessible at any time via `nulka_cli --repl`.
 
 ## Token Management & Memory Condensation
 Terminal flooding and context-window exhaustion are aggressively managed:

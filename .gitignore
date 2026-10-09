@@ -30,4 +30,5 @@ docs/_build/
 GEMINI.md
 .gemini/
 .geminiignore
+.nulka_cli/
 

@@ -16,7 +16,9 @@ class SessionState:
         self.auto_approve: bool = False
         self.tui_mode: bool = False
         self.history: list[dict] = []
+        self.file_cache: dict[str, str] = {}
         self.stream_listener = None
+        self.thought_stream_listener = None
         self.user_prompt_handler = None
         
         # Attempt to load recoverable session if it exists in the current workspace
@@ -31,6 +33,18 @@ class SessionState:
         if self.stream_listener:
             try:
                 self.stream_listener(line)
+            except Exception:
+                pass
+                
+    def set_thought_stream_listener(self, listener):
+        """Sets a callback to receive real-time model thoughts (e.g. TUI Thought Drawer)."""
+        self.thought_stream_listener = listener
+
+    def stream_thought(self, line: str):
+        """Dispatches a streamed thought to the active thought listener if one exists."""
+        if self.thought_stream_listener:
+            try:
+                self.thought_stream_listener(line)
             except Exception:
                 pass
 
@@ -84,6 +98,16 @@ class SessionState:
                 f.write(output)
         except Exception:
             pass
+
+    def update_file_cache(self, file_path: str, content: str):
+        """Caches the content of a recently read or written file in memory for other agents to see instantly."""
+        # Only cache relatively small files to avoid destroying LLM context
+        if len(content) < 8000:
+            self.file_cache[os.path.abspath(file_path)] = content
+            # Keep cache size small (max 5 items)
+            if len(self.file_cache) > 5:
+                # Remove oldest (dict is insertion ordered in modern python)
+                self.file_cache.pop(next(iter(self.file_cache)))
 
     def append_interaction(self, prompt: str, route: str, output: str):
         """Logs an interaction to history and flushes to disk."""

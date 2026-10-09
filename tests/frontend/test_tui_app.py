@@ -21,15 +21,16 @@ def test_tui_sidebar_toggle(tmp_path):
         app = NulkaApp(workspace_dir=str(tmp_path))
         async with app.run_test() as pilot:
             sidebar = app.query_one("#sidebar")
-            assert not sidebar.has_class("hidden")
-            
-            # Toggle off
-            app.action_toggle_sidebar()
+            # Starts hidden by default
             assert sidebar.has_class("hidden")
             
             # Toggle on
             app.action_toggle_sidebar()
             assert not sidebar.has_class("hidden")
+            
+            # Toggle off
+            app.action_toggle_sidebar()
+            assert sidebar.has_class("hidden")
     asyncio.run(_test())
 
 def test_tui_action_drawer_stream(tmp_path):

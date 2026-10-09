@@ -28,6 +28,9 @@ from textual.widgets import (
     LoadingIndicator,
     RichLog,
     Static,
+    TextArea,
+    TabbedContent,
+    TabPane,
 )
 
 class HelpScreen(ModalScreen):
@@ -144,6 +147,69 @@ class InfoScreen(ModalScreen):
                     yield Static(self.content)
 
 
+class LogsScreen(ModalScreen):
+    """Screen containing selectable TextAreas for Action and Thought logs."""
+    
+    BINDINGS = [
+        Binding("escape", "app.pop_screen", "Close"),
+    ]
+    
+    CSS = """
+    LogsScreen {
+        align: center middle;
+        background: $background 50%;
+    }
+    
+    #logs-dialog {
+        width: 90%;
+        height: 90%;
+        padding: 1 2;
+        border: thick $primary;
+        background: #1e1f29;
+    }
+    
+    #logs-dialog-title {
+        text-align: center;
+        text-style: bold;
+        color: #8be9fd;
+        margin-bottom: 1;
+        border-bottom: solid #2a2c37;
+    }
+    
+    TextArea {
+        height: 1fr;
+    }
+    """
+    
+    def __init__(self, action_log_text: str, thought_log_text: str, **kwargs):
+        super().__init__(**kwargs)
+        self.action_log_text = action_log_text
+        self.thought_log_text = thought_log_text
+        
+    def compose(self) -> ComposeResult:
+        with Vertical(id="logs-dialog"):
+            yield Label("Stream Logs", id="logs-dialog-title")
+            with TabbedContent():
+                with TabPane("Action Stream"):
+                    yield TextArea(text=self.action_log_text or "No action logs recorded yet.", read_only=True)
+                with TabPane("Model Thoughts"):
+                    yield TextArea(text=self.thought_log_text or "No model thoughts recorded yet.", read_only=True)
+
+
+class NavigableDirectoryTree(DirectoryTree):
+    """Custom DirectoryTree that allows navigating up a level."""
+    BINDINGS = [
+        Binding("backspace", "go_up", "Go Up", priority=True),
+        Binding("h", "go_up", "Go Up (Vim)", priority=True),
+    ]
+
+    def action_go_up(self) -> None:
+        """Navigates to the parent directory."""
+        import os
+        parent = os.path.dirname(str(self.path))
+        if parent and parent != str(self.path):
+            self.path = parent
+
 class ChatMessageWidget(Static):
     """Widget displaying a single message card in the chat log."""
 
@@ -159,10 +225,7 @@ class ChatMessageWidget(Static):
         from rich.text import Text
         if self.content:
             plain_text = Text.from_ansi(self.content).plain
-            if copy_text_to_clipboard(plain_text):
-                self.app.notify("Copied message to clipboard!", title="Clipboard")
-            else:
-                self.app.notify("Failed to copy message", severity="warning")
+            copy_text_to_clipboard(plain_text)
 
     def compose(self) -> ComposeResult:
         if self.role == "user":
@@ -331,7 +394,7 @@ class NulkaApp(App):
         color: #f8f8f2;
     }
 
-    #action-drawer {
+    #action-drawer, #thought-drawer {
         height: 16;
         dock: bottom;
         background: #0f1015;
@@ -340,34 +403,35 @@ class NulkaApp(App):
         display: none;
     }
 
-    #action-drawer.visible {
+    #action-drawer.visible, #thought-drawer.visible {
         display: block;
     }
 
-    #action-title {
+    #action-title, #thought-title {
         color: #bd93f9;
         text-style: bold;
         padding: 0;
     }
 
-    #action-log {
+    #action-log, #thought-log {
         height: 1fr;
         background: #0b0c0e;
         border: solid #282a36;
     }
 
     #input-container {
-        height: 3;
+        height: 6;
         dock: bottom;
         background: #181920;
         border-top: solid #2a2c37;
-        padding: 0 1;
+        padding: 1 1;
     }
 
     #user-input {
         background: #121317;
         border: none;
         color: #50fa7b;
+        height: 4;
     }
 
     #user-input:focus {
@@ -378,14 +442,17 @@ class NulkaApp(App):
     BINDINGS = [
         Binding("ctrl+b", "toggle_sidebar", "Toggle Sidebar", priority=True),
         Binding("ctrl+d", "toggle_action_drawer", "Toggle Action Drawer", priority=True),
+        Binding("ctrl+t", "toggle_thought_drawer", "Toggle Thought Drawer", priority=True),
+        Binding("ctrl+l", "show_logs_modal", "View Logs", priority=True),
         Binding("ctrl+y", "copy_last_output", "Copy Output", priority=True),
         Binding("ctrl+c", "cancel_action", "Cancel / Copy", priority=False),
         Binding("f1", "show_help", "Help", priority=True),
     ]
 
     is_thinking = reactive(False)
-    sidebar_visible = reactive(True)
+    sidebar_visible = reactive(False)
     action_drawer_visible = reactive(False)
+    thought_drawer_visible = reactive(False)
 
     def __init__(
         self,
@@ -396,15 +463,17 @@ class NulkaApp(App):
         super().__init__(**kwargs)
         self.workspace_dir = workspace_dir or os.getcwd()
         self.on_submit_callback = on_submit_callback
+        self.action_log_buffer = ""
+        self.thought_log_buffer = ""
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
 
         with Container(id="app-grid"):
-            # Left Sidebar: Workspace explorer
-            with Vertical(id="sidebar"):
+            # Left Sidebar: Workspace explorer (hidden by default)
+            with Vertical(id="sidebar", classes="hidden"):
                 yield Label("📂 Workspace", id="sidebar-title")
-                yield DirectoryTree(self.workspace_dir, id="directory-tree")
+                yield NavigableDirectoryTree(self.workspace_dir, id="directory-tree")
 
             # Center: Main Chat & Drawer
             with Vertical(id="main-content"):
@@ -419,6 +488,11 @@ class NulkaApp(App):
                 with Vertical(id="action-drawer"):
                     yield Label("⚡ Live Tool Stream (Action Drawer)", id="action-title")
                     yield RichLog(id="action-log", highlight=True, markup=True)
+                    
+                # Bottom Thought Drawer (hidden by default)
+                with Vertical(id="thought-drawer"):
+                    yield Label("🧠 Model Thoughts (Thought Drawer)", id="thought-title")
+                    yield RichLog(id="thought-log", highlight=True, markup=True)
 
                 # Bottom input field
                 with Container(id="input-container"):
@@ -452,6 +526,17 @@ class NulkaApp(App):
         else:
             self.sub_title = msg
 
+    def action_show_logs_modal(self) -> None:
+        """Show the modal containing full logs for copying."""
+        def _apply():
+            # Filter ansi codes out of the buffers for cleaner textarea display
+            import re
+            ansi_escape = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
+            clean_action = ansi_escape.sub('', self.action_log_buffer)
+            clean_thought = ansi_escape.sub('', self.thought_log_buffer)
+            self.push_screen(LogsScreen(clean_action, clean_thought))
+        self._dispatch_ui(_apply)
+
     def action_toggle_sidebar(self) -> None:
         """Toggle workspace sidebar visibility."""
         self.sidebar_visible = not self.sidebar_visible
@@ -469,6 +554,21 @@ class NulkaApp(App):
             drawer.add_class("visible")
         else:
             drawer.remove_class("visible")
+            
+    def action_toggle_thought_drawer(self) -> None:
+        """Toggle thought drawer visibility."""
+        self.thought_drawer_visible = not self.thought_drawer_visible
+        drawer = self.query_one("#thought-drawer")
+        if self.thought_drawer_visible:
+            drawer.add_class("visible")
+            from nulka_cli.cli import console
+            import sys
+            import nulka_cli.cli
+            nulka_cli.cli.DEBUG_MODE = True
+        else:
+            drawer.remove_class("visible")
+            import nulka_cli.cli
+            nulka_cli.cli.DEBUG_MODE = False
 
     def action_cancel_action(self) -> None:
         """Handle interrupt/cancellation or copy in input."""
@@ -485,12 +585,7 @@ class NulkaApp(App):
         from nulka_cli.utils import copy_text_to_clipboard
 
         if state.last_full_output:
-            if copy_text_to_clipboard(state.last_full_output):
-                self.notify("Copied last response to clipboard!", title="Clipboard")
-            else:
-                self.notify("Failed to copy to clipboard", severity="warning")
-        else:
-            self.notify("No response to copy yet", severity="information")
+            copy_text_to_clipboard(state.last_full_output)
 
     def action_show_help(self) -> None:
         """Show the TUI help screen."""
@@ -560,16 +655,31 @@ class NulkaApp(App):
 
     def stream_action(self, line: str, open_drawer: bool = True) -> None:
         """Write output into the action drawer log."""
+        self.action_log_buffer += line + "\n"
         def _apply():
             if open_drawer and not self.action_drawer_visible:
                 self.action_toggle_action_drawer()
             action_log = self.query_one("#action-log", RichLog)
             action_log.write(line)
         self._dispatch_ui(_apply)
+        
+    def stream_thought(self, line: str, open_drawer: bool = False) -> None:
+        """Write output into the thought drawer log."""
+        self.thought_log_buffer += line + "\n"
+        def _apply():
+            if open_drawer and not self.thought_drawer_visible:
+                self.action_toggle_thought_drawer()
+            thought_log = self.query_one("#thought-log", RichLog)
+            thought_log.write(line)
+        self._dispatch_ui(_apply)
 
     def clear_chat(self) -> None:
         """Clears all messages from the chat scroll view and resets to clean state."""
+        self.action_log_buffer = ""
+        self.thought_log_buffer = ""
         def _apply():
+            self.query_one("#action-log", RichLog).clear()
+            self.query_one("#thought-log", RichLog).clear()
             chat_scroll = self.query_one("#chat-scroll", VerticalScroll)
             chat_scroll.remove_children()
             chat_scroll.mount(ChatMessageWidget(
@@ -602,6 +712,15 @@ class NulkaApp(App):
     @work(thread=True)
     def run_worker_submit(self, user_text: str) -> None:
         """Runs the submission callback in a separate worker thread so UI never freezes."""
+        self.action_log_buffer = ""
+        self.thought_log_buffer = ""
+        
+        # Clear the UI RichLogs as well
+        def _clear_logs():
+            self.query_one("#action-log", RichLog).clear()
+            self.query_one("#thought-log", RichLog).clear()
+        self.app.call_from_thread(_clear_logs)
+        
         self.app.call_from_thread(self.set_thinking, True, "⏳ Analyzing intent...")
         try:
             if self.on_submit_callback:
