@@ -75,10 +75,7 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
         table.add_row("web_fetch / web_search", "Web interaction tools.")
         table.add_row("consult_oracle", "Fallback to universal truth (gemini/claude).")
 
-        if hasattr(session, "action_show_info"):
-            session.action_show_info("🛠️ Available NulkaCLI Tools", table)
-        else:
-            console.print(table)
+        console.print(table)
         return True
     elif cmd == "/agents":
         from nulka_cli.utils import load_agent_configs
@@ -97,10 +94,7 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
             goal = conf.get("goal", "").strip()
             table.add_row(name, role, goal)
             
-        if hasattr(session, "action_show_info"):
-            session.action_show_info("🤖 Available NulkaCLI Departments & Agents", table)
-        else:
-            console.print(table)
+        console.print(table)
         return True
     
     # 3. Output Management
@@ -114,6 +108,32 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
         else:
             console.print("[bold yellow]⚠️ Unable to copy to clipboard automatically.[/bold yellow]")
             console.print("[dim]Please ensure wl-copy, xsel, or xclip is installed, or hold Shift to select text.[/dim]")
+        return True
+    elif cmd in ["/copy_log", "/copy_logs", "/copylog", "/copylogs"]:
+        import re
+        from nulka_cli.utils import copy_text_to_clipboard
+        ansi_escape = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
+        log_text = ""
+        if hasattr(session, "action_log_buffer"):
+            clean_action = ansi_escape.sub('', getattr(session, "action_log_buffer", "")).strip()
+            clean_thought = ansi_escape.sub('', getattr(session, "thought_log_buffer", "")).strip()
+            if clean_action:
+                log_text += f"=== ACTION STREAM ===\n{clean_action}\n\n"
+            if clean_thought:
+                log_text += f"=== MODEL THOUGHTS ===\n{clean_thought}\n\n"
+        
+        if not log_text and state.last_full_output:
+            log_text = state.last_full_output
+
+        if not log_text:
+            console.print("[bold red]❌ No stream logs or outputs found to copy.[/bold red]")
+            return True
+
+        if copy_text_to_clipboard(log_text.strip()):
+            console.print("[bold green]✅ Copied stream logs to clipboard![/bold green]")
+        else:
+            console.print("[bold yellow]⚠️ Unable to copy logs to clipboard automatically.[/bold yellow]")
+            console.print("[dim]Please ensure wl-copy, xsel, or xclip is installed.[/dim]")
         return True
     elif cmd == "/expand":
         cli_module.execute_expand_pager()
@@ -221,13 +241,11 @@ def handle_slash_command(cmd: str, parts: list[str], console, session, cli_modul
     # 6. Model Management
     elif cmd == "/models":
         table_content = cli_module.show_ollama_models()
-        if hasattr(session, "action_show_info"):
-            session.action_show_info("🦙 Ollama Local Model Hub", table_content)
+        # Print directly to chat feed to allow easy text selection/copying
+        if isinstance(table_content, str):
+            console.print(table_content)
         else:
-            if isinstance(table_content, str):
-                console.print(table_content)
-            else:
-                console.print(table_content)
+            console.print(table_content)
         return True
     elif cmd == "/pull":
         if len(parts) < 2:
@@ -286,19 +304,9 @@ If a prompt's risk score exceeds this threshold, the query defaults to the Oracl
 * `/bs`: Penalize heavily.
 * `/risk <prompt>`: Preview the risk score of a specific prompt.
 """
-        if hasattr(session, "action_show_info"):
-            session.action_show_info("Hallucination Risk Factor", md_content.strip())
-        else:
-            from rich.panel import Panel
-            console.print(Panel(
-                f"Active Model: [bold cyan]{active_model}[/bold cyan]\n"
-                f"Current Threshold: [bold magenta]{thresh:.2f}[/bold magenta]\n"
-                f"Baseline: [dim]{base:.2f}[/dim]\n\n"
-                f"If a prompt's risk score exceeds this threshold, the query defaults to the Oracle.\n"
-                f"Use [bold cyan]/trust[/] to raise the threshold, [bold yellow]/doubt[/] to lower it, and [bold red]/bs[/] to penalize it heavily.\n"
-                f"Use [bold cyan]/risk <prompt>[/] to preview the risk score of a specific prompt.",
-                title="Hallucination Risk Factor (HRF) Status", border_style="blue"
-            ))
+        from rich.panel import Panel
+        from rich.markdown import Markdown
+        console.print(Markdown(md_content.strip()))
         return True
     elif cmd == "/risk":
         if len(parts) < 2:
@@ -428,11 +436,8 @@ If a prompt's risk score exceeds this threshold, the query defaults to the Oracl
                 else:
                     md_content += "*No global rules have been taught yet (use `/teach`).*\n\n---\n\n"
         
-        if hasattr(session, "action_show_info"):
-            session.action_show_info("🧠 Workspace Memory & Rules", md_content.strip())
-        else:
-            from rich.markdown import Markdown
-            console.print(Markdown(md_content.strip()))
+        from rich.markdown import Markdown
+        console.print(Markdown(md_content.strip()))
         return True
 
     elif cmd == "/mcp":
@@ -509,6 +514,7 @@ def print_help(console):
         "  [bold cyan]/compress[/]           Compress session history to a single dense memory block\n"
         "  [bold cyan]/memory[/]             View the current compressed session memory and rules\n"
         "  [bold cyan]/copy[/]               Copy the last raw output to your clipboard\n"
+        "  [bold cyan]/copy_log[/]           Copy full action and thought stream logs to clipboard\n"
         "  [bold cyan]/tools[/]              List available capabilities\n"
         "  [bold cyan]/agents[/]             List available specialized AI departments\n"
         "  [bold cyan]/oracle <query>[/]     Directly query the External Universal Oracle\n"

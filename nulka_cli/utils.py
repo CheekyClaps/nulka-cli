@@ -5,7 +5,7 @@ from datetime import datetime
 
 import yaml
 from crewai import Agent
-from langchain_community.llms import Ollama
+from langchain_community.chat_models import ChatOllama
 
 from nulka_cli.tools.consult_oracle_tool import ConsultOracleTool
 from nulka_cli.tools.fs_tools import (
@@ -354,8 +354,20 @@ def get_fast_model() -> str:
 local_model_name = get_best_available_model()
 fast_model_name = get_fast_model()
 
-ollama_llm = Ollama(model=local_model_name, base_url="http://localhost:11434")
-ollama_fast_llm = Ollama(model=fast_model_name, base_url="http://localhost:11434")
+# Use a larger context window to avoid 4096 default limit crashes on large file reads (e.g. linpeas)
+# Can be overridden by the user via environment variable.
+ollama_num_ctx = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
+
+ollama_llm = ChatOllama(
+    model=local_model_name, 
+    base_url="http://localhost:11434",
+    num_ctx=ollama_num_ctx
+)
+ollama_fast_llm = ChatOllama(
+    model=fast_model_name, 
+    base_url="http://localhost:11434",
+    num_ctx=ollama_num_ctx
+)
 
 
 def copy_text_to_clipboard(text: str) -> bool:
